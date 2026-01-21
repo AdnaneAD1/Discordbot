@@ -58,18 +58,20 @@ async function createTicket(interaction, type) {
     return channel;
 }
 
-// Update status in DB (Guild-specific)
-const snapshot = await db.collection('guilds').doc(channel.guild.id).collection('tickets').where('channelId', '==', channel.id).get();
-snapshot.forEach(async (doc) => {
-    await doc.ref.update({
-        status: 'closed',
-        closedAt: new Date(),
-        closedBy: moderator.id,
+async function closeTicket(channel, moderator) {
+    // Update status in DB (Guild-specific)
+    const snapshot = await db.collection('guilds').doc(channel.guild.id).collection('tickets').where('channelId', '==', channel.id).get();
+    snapshot.forEach(async (doc) => {
+        await doc.ref.update({
+            status: 'closed',
+            closedAt: new Date(),
+            closedBy: moderator.id,
+        });
     });
-});
 
-await channel.send('Ce ticket sera fermé dans 5 secondes...');
-setTimeout(() => channel.delete(), 5000);
+    await channel.send('Ce ticket sera fermé dans 5 secondes...');
+    setTimeout(() => channel.delete(), 5000);
+}
 
 
 module.exports = { createTicket, closeTicket };
