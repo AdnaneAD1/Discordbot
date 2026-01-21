@@ -26,7 +26,7 @@ module.exports = {
                     .setColor('#0099ff')
                     .setTitle(`Bienvenue sur le serveur de CODM Streamer !`)
                     .setDescription(`Salut ${member}, ravi de te voir ici ! \n\nPour accéder au reste du serveur, merci de lire et d'accepter le règlement dans <#${config.rulesChannelId || 'le salon dédié'}>.`)
-                    .setThumbnail(member.user.displayAvatarURL())
+                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
 
                 channel.send({ embeds: [welcomeEmbed] });
