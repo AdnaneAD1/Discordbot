@@ -14,8 +14,10 @@ const client = new Client({
 });
 
 const { initMusic } = require('./services/music');
+const { initNotifications } = require('./services/notifications');
 client.commands = new Collection();
 client.kazagumo = initMusic(client);
+initNotifications(client);
 
 // Load Commands
 const foldersPath = path.join(__dirname, 'commands');
