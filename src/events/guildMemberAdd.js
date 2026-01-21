@@ -7,11 +7,16 @@ module.exports = {
         console.log(`New member joined: ${member.user.tag}`);
 
         // Fetch config from Firebase
-        const configRef = db.collection('config').doc('channels');
-        const rolesRef = db.collection('config').doc('roles');
+        const guildId = member.guild.id;
+        const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
 
-        const config = (await configRef.get()).data();
-        const roles = (await rolesRef.get()).data();
+        const config = (await guildConfigRef.doc('channels').get()).data();
+        const roles = (await guildConfigRef.doc('roles').get()).data();
+        const general = (await guildConfigRef.doc('general').get()).data() || {};
+
+        const embedColor = general.embedColor || '#0099ff';
+        const serverName = general.serverName || 'Mister A';
+        const logoUrl = general.logoUrl || null;
 
         // Assign "Novice" role if exists
         if (roles && roles.defaultRoleId) {
@@ -29,13 +34,12 @@ module.exports = {
                 }
 
                 const welcomeEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle(`Bienvenue sur le serveur de Mister A ${member.user.username}`)
-                    .setDescription(`N'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'}`)
-                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setColor(embedColor)
+                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, ${member} !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
+                    .setThumbnail(logoUrl || member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
 
-                channel.send({ embeds: [welcomeEmbed] });
+                channel.send({ content: `Bienvenue ${member} !`, embeds: [welcomeEmbed] });
             }
         }
     },

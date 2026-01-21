@@ -9,7 +9,8 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
         const channel = interaction.options.getChannel('channel');
-        await db.collection('config').doc('channels').set({ rulesChannelId: channel.id }, { merge: true });
+        const guildId = interaction.guild.id;
+        await db.collection('guilds').doc(guildId).collection('config').doc('channels').set({ rulesChannelId: channel.id }, { merge: true });
         await interaction.reply({ content: `✅ Salon règlement défini sur <#${channel.id}>.`, ephemeral: true });
     },
 };

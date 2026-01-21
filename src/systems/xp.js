@@ -1,6 +1,6 @@
 const { db } = require('../services/firebase');
 
-const CODM_GRADES = [
+const DEFAULT_CODM_GRADES = [
     { name: "Recrue", xp: 0 },
     { name: "Vétéran", xp: 200 },
     { name: "Élite", xp: 600 },
@@ -11,19 +11,25 @@ const CODM_GRADES = [
 ];
 
 async function addXP(member, amount, source = 'message') {
-    if (member.user.bot) return;
+    if (member.user.bot || !member.guild) return;
 
-    const userRef = db.collection('users').doc(member.id);
+    const guildId = member.guild.id;
+    const userRef = db.collection('guilds').doc(guildId).collection('users').doc(member.id);
     const userDoc = await userRef.get();
 
-    let userData = userDoc.exists ? userDoc.data() : { xp: 0, level: CODM_GRADES[0].name };
+    // Fetch dynamic grades or use defaults
+    const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
+    const configGrades = gradesDoc.exists ? gradesDoc.data().paliers : null;
+    const codmGrades = configGrades || DEFAULT_CODM_GRADES;
+
+    let userData = userDoc.exists ? userDoc.data() : { xp: 0, level: codmGrades[0].name };
 
     const oldXp = userData.xp || 0;
     const newXp = oldXp + amount;
 
-    // Find new grade
-    let newGrade = CODM_GRADES[0].name;
-    for (const grade of CODM_GRADES) {
+    // Find new grade based on current xp
+    let newGrade = codmGrades[0].name;
+    for (const grade of codmGrades) {
         if (newXp >= grade.xp) {
             newGrade = grade.name;
         } else {
@@ -38,9 +44,10 @@ async function addXP(member, amount, source = 'message') {
         lastActive: new Date(),
     }, { merge: true });
 
-    // Log XP gain
-    await db.collection('xp_logs').add({
+    // Log XP gain (guild isolated)
+    await db.collection('guilds').doc(guildId).collection('xp_logs').add({
         userId: member.id,
+        username: member.user.username,
         amount,
         source,
         createdAt: new Date(),
@@ -48,27 +55,27 @@ async function addXP(member, amount, source = 'message') {
 
     // Check if grade changed to update roles
     if (newGrade !== userData.level) {
-        await updateGradeRoles(member, newGrade);
+        await updateGradeRoles(member, newGrade, codmGrades);
     }
 }
 
-async function updateGradeRoles(member, newGradeName) {
-    // This requires a mapping of Grade Name -> Role ID in the 'config' collection
-    const configDoc = await db.collection('config').doc('grades').get();
+async function updateGradeRoles(member, newGradeName, codmGrades) {
+    const guildId = member.guild.id;
+    const configDoc = await db.collection('guilds').doc(guildId).collection('config').doc('roles').get();
     if (!configDoc.exists) return;
 
-    const gradeRoles = configDoc.data();
-    const roleId = gradeRoles[newGradeName];
+    const roleConfig = configDoc.data().gradeRoles || {};
+    const roleId = roleConfig[newGradeName];
 
     if (roleId) {
         const role = member.guild.roles.cache.get(roleId);
         if (role) {
-            // Remove old grade roles and add new one
-            const allGradeRoleIds = Object.values(gradeRoles);
+            // Remove all other possibly assigned grade roles
+            const allGradeRoleIds = Object.values(roleConfig);
             await member.roles.remove(allGradeRoleIds).catch(() => { });
             await member.roles.add(role).catch(console.error);
         }
     }
 }
 
-module.exports = { addXP, CODM_GRADES };
+module.exports = { addXP, CODM_GRADES: DEFAULT_CODM_GRADES };

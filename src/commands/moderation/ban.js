@@ -5,6 +5,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('ban')
         .setDescription('Bannit un membre du serveur')
+        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
         .addUserOption(option => option.setName('user').setDescription('Le membre à bannir').setRequired(true))
         .addStringOption(option => option.setName('reason').setDescription('La raison')),
     async execute(interaction) {

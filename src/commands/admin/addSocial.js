@@ -22,12 +22,15 @@ module.exports = {
         const username = interaction.options.getString('username');
         const channel = interaction.options.getChannel('channel');
 
+        const guildId = interaction.guild.id;
         await db.collection('socials').add({
             platform,
             username,
             channelId: channel.id,
+            guildId,
             lastPostId: '',
-            isLive: false
+            isLive: false,
+            createdAt: new Date()
         });
 
         await interaction.reply({ content: `✅ Compte **${platform}** (${username}) ajouté ! Les notifications seront envoyées dans <#${channel.id}>.`, ephemeral: true });

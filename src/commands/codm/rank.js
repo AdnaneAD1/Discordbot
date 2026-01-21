@@ -10,23 +10,29 @@ module.exports = {
     async execute(interaction) {
         const target = interaction.options.getMember('user') || interaction.member;
 
-        const userDoc = await db.collection('users').doc(target.id).get();
+        const guildId = interaction.guild.id;
+        const userDoc = await db.collection('guilds').doc(guildId).collection('users').doc(target.id).get();
 
         if (!userDoc.exists) {
-            return interaction.reply({ content: 'Cet utilisateur n\'a pas encore d\'XP.', ephemeral: true });
+            return interaction.reply({ content: 'Cet utilisateur n\'a pas encore d\'XP sur ce serveur.', ephemeral: true });
         }
+
+        // Fetch dynamic grades or use defaults
+        const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
+        const configGrades = gradesDoc.exists ? gradesDoc.data().paliers : null;
+        const codmGrades = configGrades || CODM_GRADES;
 
         const data = userDoc.data();
         const xp = data.xp || 0;
-        const level = data.level || "Recrue I";
+        const level = data.level || codmGrades[0].name;
 
         // Find next grade
         let nextGrade = "Max";
         let nextXp = xp;
-        for (let i = 0; i < CODM_GRADES.length; i++) {
-            if (CODM_GRADES[i].name === level && i < CODM_GRADES.length - 1) {
-                nextGrade = CODM_GRADES[i + 1].name;
-                nextXp = CODM_GRADES[i + 1].xp;
+        for (let i = 0; i < codmGrades.length; i++) {
+            if (codmGrades[i].name === level && i < codmGrades.length - 1) {
+                nextGrade = codmGrades[i + 1].name;
+                nextXp = codmGrades[i + 1].xp;
                 break;
             }
         }

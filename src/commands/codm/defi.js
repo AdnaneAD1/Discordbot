@@ -6,7 +6,7 @@ module.exports = {
         .setName('defi')
         .setDescription('Affiche les défis CODM actifs'),
     async execute(interaction) {
-        const challenges = await getActiveChallenges();
+        const challenges = await getActiveChallenges(interaction.guild.id);
 
         if (challenges.length === 0) {
             return interaction.reply({ content: 'Aucun défi actif pour le moment. Repasse plus tard !', ephemeral: true });

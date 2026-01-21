@@ -5,6 +5,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('kick')
         .setDescription('Expulse un membre du serveur')
+        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
         .addUserOption(option => option.setName('user').setDescription('Le membre à expulser').setRequired(true))
         .addStringOption(option => option.setName('reason').setDescription('La raison')),
     async execute(interaction) {

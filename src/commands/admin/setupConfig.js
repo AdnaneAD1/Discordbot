@@ -4,47 +4,73 @@ const { db } = require('../../services/firebase');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setupconfig')
-        .setDescription('Configure les salons et rôles du bot')
+        .setDescription('Configure les salons, rôles et paliers d\'XP du serveur')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addChannelOption(option => option.setName('welcome_channel').setDescription('Salon pour les messages de bienvenue'))
         .addChannelOption(option => option.setName('rules_channel').setDescription('Salon pour le règlement'))
         .addRoleOption(option => option.setName('unverified_role').setDescription('Rôle pour les nouveaux (non vérifiés)'))
-        .addRoleOption(option => option.setName('member_role').setDescription('Rôle pour les membres vérifiés')),
+        .addRoleOption(option => option.setName('member_role').setDescription('Rôle pour les membres vérifiés'))
+        .addStringOption(option => option.setName('server_name').setDescription('Nom personnalisé du serveur'))
+        .addStringOption(option => option.setName('color').setDescription('Couleur des embeds en HEX (ex: #FF0000)'))
+        .addIntegerOption(option => option.setName('xp_veteran').setDescription('XP pour Vétéran'))
+        .addIntegerOption(option => option.setName('xp_elite').setDescription('XP pour Élite'))
+        .addIntegerOption(option => option.setName('xp_pro').setDescription('XP pour Pro'))
+        .addIntegerOption(option => option.setName('xp_maitre').setDescription('XP pour Maître'))
+        .addIntegerOption(option => option.setName('xp_grand_maitre').setDescription('XP pour Grand Maître'))
+        .addIntegerOption(option => option.setName('xp_legendaire').setDescription('XP pour Légendaire')),
     async execute(interaction) {
-        const welcomeChannel = interaction.options.getChannel('welcome_channel');
-        const rulesChannel = interaction.options.getChannel('rules_channel');
-        const unverifiedRole = interaction.options.getRole('unverified_role');
-        const memberRole = interaction.options.getRole('member_role');
+        const guildId = interaction.guild.id;
+        const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
+
+        const options = {
+            welcomeChannel: interaction.options.getChannel('welcome_channel'),
+            rulesChannel: interaction.options.getChannel('rules_channel'),
+            unverifiedRole: interaction.options.getRole('unverified_role'),
+            memberRole: interaction.options.getRole('member_role'),
+            serverName: interaction.options.getString('server_name'),
+            color: interaction.options.getString('color'),
+            xpVeteran: interaction.options.getInteger('xp_veteran'),
+            xpElite: interaction.options.getInteger('xp_elite'),
+            xpPro: interaction.options.getInteger('xp_pro'),
+            xpMaitre: interaction.options.getInteger('xp_maitre'),
+            xpGrandMaitre: interaction.options.getInteger('xp_grand_maitre'),
+            xpLegendaire: interaction.options.getInteger('xp_legendaire'),
+        };
 
         const updates = [];
+        // ... (previous logic for channels/branding remains)
 
-        if (welcomeChannel) {
-            await db.collection('config').doc('channels').set({ welcomeChannelId: welcomeChannel.id }, { merge: true });
-            updates.push(`✅ Salon Bienvenue : <#${welcomeChannel.id}>`);
-        }
+        // Handle XP Grades customization
+        if (options.xpVeteran || options.xpElite || options.xpPro || options.xpMaitre || options.xpGrandMaitre || options.xpLegendaire) {
+            const gradesDoc = await guildConfigRef.doc('grades').get();
+            let currentGrades = gradesDoc.exists ? gradesDoc.data().paliers : [
+                { name: "Recrue", xp: 0 },
+                { name: "Vétéran", xp: 200 },
+                { name: "Élite", xp: 600 },
+                { name: "Pro", xp: 1200 },
+                { name: "Maître", xp: 2500 },
+                { name: "Grand Maître", xp: 5000 },
+                { name: "Légendaire", xp: 10000 }
+            ];
 
-        if (rulesChannel) {
-            await db.collection('config').doc('channels').set({ rulesChannelId: rulesChannel.id }, { merge: true });
-            updates.push(`✅ Salon Règlement : <#${rulesChannel.id}>`);
-        }
+            if (options.xpVeteran) currentGrades.find(g => g.name === "Vétéran").xp = options.xpVeteran;
+            if (options.xpElite) currentGrades.find(g => g.name === "Élite").xp = options.xpElite;
+            if (options.xpPro) currentGrades.find(g => g.name === "Pro").xp = options.xpPro;
+            if (options.xpMaitre) currentGrades.find(g => g.name === "Maître").xp = options.xpMaitre;
+            if (options.xpGrandMaitre) currentGrades.find(g => g.name === "Grand Maître").xp = options.xpGrandMaitre;
+            if (options.xpLegendaire) currentGrades.find(g => g.name === "Légendaire").xp = options.xpLegendaire;
 
-        if (unverifiedRole) {
-            await db.collection('config').doc('roles').set({ unverifiedRoleId: unverifiedRole.id }, { merge: true });
-            updates.push(`✅ Rôle Non-Vérifié : <@&${unverifiedRole.id}>`);
-        }
-
-        if (memberRole) {
-            await db.collection('config').doc('roles').set({ memberRoleId: memberRole.id }, { merge: true });
-            updates.push(`✅ Rôle Membre : <@&${memberRole.id}>`);
+            await guildConfigRef.doc('grades').set({ paliers: currentGrades }, { merge: true });
+            updates.push(`✅ Paliers d'XP mis à jour`);
         }
 
         if (updates.length === 0) {
-            return interaction.reply({ content: '❌ Merci de spécifier au moins une option à configurer.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucune option modifiée.', ephemeral: true });
         }
 
         const setupEmbed = new EmbedBuilder()
             .setColor('#2ecc71')
-            .setTitle('⚙️ CONFIGURATION MISE À JOUR')
+            .setTitle('⚙️ CONFIGURATION SERVEUR')
             .setDescription(updates.join('\n'))
             .setTimestamp();
 

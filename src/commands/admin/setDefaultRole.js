@@ -9,7 +9,8 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
         const role = interaction.options.getRole('role');
-        await db.collection('config').doc('roles').set({ defaultRoleId: role.id }, { merge: true });
+        const guildId = interaction.guild.id;
+        await db.collection('guilds').doc(guildId).collection('config').doc('roles').set({ defaultRoleId: role.id }, { merge: true });
         await interaction.reply({ content: `✅ Rôle par défaut défini sur **${role.name}**.`, ephemeral: true });
     },
 };

@@ -3,8 +3,9 @@ const { db } = require('../services/firebase');
 async function checkMessage(message) {
     if (message.author.bot || !message.guild) return false;
 
-    // Fetch moderation config
-    const modConfigRef = db.collection('config').doc('moderation');
+    const guildId = message.guild.id;
+    // Fetch moderation config (guild specific)
+    const modConfigRef = db.collection('guilds').doc(guildId).collection('config').doc('moderation');
     const modConfig = (await modConfigRef.get()).data() || {
         forbiddenWords: [],
         antiLinks: true,
@@ -21,9 +22,8 @@ async function checkMessage(message) {
         }
     }
 
-    // 2. Anti-Links (simple check)
+    // 2. Anti-Links
     if (modConfig.antiLinks && (content.includes('http://') || content.includes('https://') || content.includes('discord.gg/'))) {
-        // Allow staff to post links
         if (!message.member.permissions.has('ManageMessages')) {
             await moderate(message, 'Unauthorised Link');
             return true;
@@ -34,14 +34,15 @@ async function checkMessage(message) {
 }
 
 async function moderate(message, reason) {
+    const guildId = message.guild.id;
     try {
         await message.delete();
         await message.channel.send(`${message.author}, votre message a été supprimé pour la raison suivante : **${reason}**.`).then(msg => {
             setTimeout(() => msg.delete(), 5000);
         });
 
-        // Log to DB
-        await db.collection('mod_logs').add({
+        // Log to DB (guild isolated)
+        await db.collection('guilds').doc(guildId).collection('mod_logs').add({
             userId: message.author.id,
             username: message.author.username,
             action: 'DELETE',

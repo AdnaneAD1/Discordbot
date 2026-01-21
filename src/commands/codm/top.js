@@ -6,7 +6,8 @@ module.exports = {
         .setName('top')
         .setDescription('Affiche le classement des meilleurs joueurs'),
     async execute(interaction) {
-        const snapshot = await db.collection('users').orderBy('xp', 'desc').limit(10).get();
+        const guildId = interaction.guild.id;
+        const snapshot = await db.collection('guilds').doc(guildId).collection('users').orderBy('xp', 'desc').limit(10).get();
 
         if (snapshot.empty) {
             return interaction.reply({ content: 'Le classement est vide pour le moment.', ephemeral: true });

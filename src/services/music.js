@@ -26,9 +26,19 @@ const initMusic = (client) => {
         }
     }, new Connectors.DiscordJS(client), nodes, {
         moveOnDisconnect: false,
-        resume: false,
-        reconnectTries: 3,
-        restTimeout: 15000
+        resume: true,
+        resumeTimeout: 60,
+        reconnectTries: 10,
+        restTimeout: 15000,
+        structures: {
+            player: {
+                volume: 90, // Slightly higher for better dynamics
+                noReplace: false
+            }
+        },
+        voiceConnectionOptions: {
+            highPacketLossMode: false, // Assume stable connection for quality
+        }
     });
 
     kazagumo.shoukaku.on('ready', (name) => console.log(`🎵 Lavalink Node "${name}" is connected.`));
