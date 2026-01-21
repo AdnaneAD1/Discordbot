@@ -12,6 +12,7 @@ module.exports = {
         .addRoleOption(option => option.setName('member_role').setDescription('Rôle pour les membres vérifiés'))
         .addStringOption(option => option.setName('server_name').setDescription('Nom personnalisé du serveur'))
         .addStringOption(option => option.setName('color').setDescription('Couleur des embeds en HEX (ex: #FF0000)'))
+        .addChannelOption(option => option.setName('music_channel').setDescription('Salon vocal par défaut pour la musique'))
         .addIntegerOption(option => option.setName('xp_veteran').setDescription('XP pour Vétéran'))
         .addIntegerOption(option => option.setName('xp_elite').setDescription('XP pour Élite'))
         .addIntegerOption(option => option.setName('xp_pro').setDescription('XP pour Pro'))
@@ -29,6 +30,7 @@ module.exports = {
             memberRole: interaction.options.getRole('member_role'),
             serverName: interaction.options.getString('server_name'),
             color: interaction.options.getString('color'),
+            musicChannel: interaction.options.getChannel('music_channel'),
             xpVeteran: interaction.options.getInteger('xp_veteran'),
             xpElite: interaction.options.getInteger('xp_elite'),
             xpPro: interaction.options.getInteger('xp_pro'),
@@ -38,8 +40,16 @@ module.exports = {
         };
 
         const updates = [];
-        // ... (previous logic for channels/branding remains)
 
+        if (options.welcomeChannel) {
+            await guildConfigRef.doc('channels').set({ welcomeChannelId: options.welcomeChannel.id }, { merge: true });
+            updates.push(`✅ Bienvenue : <#${options.welcomeChannel.id}>`);
+        }
+
+        if (options.musicChannel) {
+            await guildConfigRef.doc('channels').set({ defaultVoiceChannelId: options.musicChannel.id }, { merge: true });
+            updates.push(`✅ Salon Musique : <#${options.musicChannel.id}>`);
+        }
         // Handle XP Grades customization
         if (options.xpVeteran || options.xpElite || options.xpPro || options.xpMaitre || options.xpGrandMaitre || options.xpLegendaire) {
             const gradesDoc = await guildConfigRef.doc('grades').get();

@@ -3,6 +3,7 @@
 // Here we provide the command structure and placeholder for the logic.
 
 const { SlashCommandBuilder } = require('discord.js');
+const { db } = require('../../services/firebase');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,8 +13,19 @@ module.exports = {
     async execute(interaction) {
         const query = interaction.options.getString('query');
 
-        if (!interaction.member.voice.channel) {
-            return interaction.reply({ content: '❌ Tu dois être dans un salon vocal !', ephemeral: true });
+        let voiceChannelId = interaction.member.voice.channel?.id;
+
+        if (!voiceChannelId) {
+            const guildId = interaction.guild.id;
+            const channelConfig = await db.collection('guilds').doc(guildId).collection('config').doc('channels').get();
+            voiceChannelId = channelConfig.data()?.defaultVoiceChannelId;
+
+            if (!voiceChannelId) {
+                return interaction.reply({
+                    content: '❌ Tu dois être dans un salon vocal ou un salon par défaut doit être configuré avec `/setupconfig` !',
+                    flags: [64]
+                });
+            }
         }
 
         await interaction.deferReply();
@@ -27,7 +39,7 @@ module.exports = {
             const player = await kazagumo.createPlayer({
                 guildId: interaction.guild.id,
                 textId: interaction.channel.id,
-                voiceId: interaction.member.voice.channel.id,
+                voiceId: voiceChannelId,
                 deaf: true
             });
 
