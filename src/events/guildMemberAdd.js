@@ -35,7 +35,6 @@ module.exports = {
 
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor(embedColor)
-                    .setAuthor({ name: serverName, iconURL: logoUrl || interaction.guild.iconURL() })
                     .setDescription(`Bienvenue sur le serveur de **${serverName}**, ${member} !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
                     .setTimestamp();

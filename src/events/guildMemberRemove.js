@@ -21,7 +21,6 @@ module.exports = {
             if (channel) {
                 const leaveEmbed = new EmbedBuilder()
                     .setColor(embedColor)
-                    .setAuthor({ name: serverName, iconURL: logoUrl || member.guild.iconURL() })
                     .setTitle(`Au revoir !`)
                     .setDescription(`**${member.user.username}** nous a quittés. À bientôt j'espère !`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
