@@ -15,6 +15,9 @@ module.exports = {
         const duration = interaction.options.getInteger('duration');
 
         const guildId = interaction.guild.id;
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + duration);
+
         await db.collection('guilds').doc(guildId).collection('challenges').add({
             title,
             rewardXp: reward,
@@ -23,6 +26,9 @@ module.exports = {
             createdAt: new Date()
         });
 
-        await interaction.reply({ content: `✅ Défi **"${title}"** ajouté avec succès ! Récompense : **${reward} XP**. Expire dans ${duration} jours.`, ephemeral: true });
+        await interaction.reply({
+            content: `✅ Défi **"${title}"** ajouté avec succès ! Récompense : **${reward} XP**. Expire dans ${duration} jours.`,
+            flags: [64] // 64 is the bitfield for EPHEMERAL
+        });
     },
 };

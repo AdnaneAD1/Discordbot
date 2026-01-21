@@ -19,9 +19,9 @@ module.exports = {
                 // Check if interaction is still valid (less than 15 mins but usually 3s for initial reply)
                 try {
                     if (interaction.replied || interaction.deferred) {
-                        await interaction.followUp({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', ephemeral: true });
+                        await interaction.followUp({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', flags: [64] });
                     } else {
-                        await interaction.reply({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', ephemeral: true });
+                        await interaction.reply({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', flags: [64] });
                     }
                 } catch (replyError) {
                     console.error('Failed to send error reply:', replyError.message);
@@ -32,7 +32,7 @@ module.exports = {
                 const type = interaction.customId.split('_')[1];
                 const { createTicket } = require('../systems/tickets');
                 const channel = await createTicket(interaction, type);
-                await interaction.reply({ content: `✅ Votre ticket a été créé : ${channel}`, ephemeral: true });
+                await interaction.reply({ content: `✅ Votre ticket a été créé : ${channel}`, flags: [64] });
             } else if (interaction.customId === 'close_ticket') {
                 const { closeTicket } = require('../systems/tickets');
                 await closeTicket(interaction.channel, interaction.user);
