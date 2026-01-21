@@ -30,8 +30,8 @@ module.exports = {
 
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor('#0099ff')
-                    .setTitle(`Bienvenue sur le serveur de Mister A ${member}`)
-                    .setDescription(`N'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#règlement'}`)
+                    .setTitle(`Bienvenue sur le serveur de Mister A ${member.user.username}`)
+                    .setDescription(`N'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'}`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
 

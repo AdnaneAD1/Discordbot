@@ -15,8 +15,8 @@
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "firebase-admin": "^13.6.0",
-    "kazagumo": "^3.4.0",
-    "kazagumo-spotify": "^2.1.1",
-    "shoukaku": "^4.2.0"
+    "kazagumo": "2.4.0",
+    "kazagumo-spotify": "1.2.1",
+    "shoukaku": "3.4.1"
   }
 }

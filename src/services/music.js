@@ -12,13 +12,6 @@ const nodes = [{
 let kazagumo;
 
 const initMusic = (client) => {
-    const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
-        moveOnDisconnect: false,
-        resume: false,
-        reconnectTries: 3,
-        restTimeout: 15000
-    });
-
     kazagumo = new Kazagumo({
         defaultSearchEngine: 'youtube',
         plugins: [
@@ -31,10 +24,15 @@ const initMusic = (client) => {
             const guild = client.guilds.cache.get(guildId);
             if (guild) guild.shard.send(payload);
         }
-    }, shoukaku);
+    }, new Connectors.DiscordJS(client), nodes, {
+        moveOnDisconnect: false,
+        resume: false,
+        reconnectTries: 3,
+        restTimeout: 15000
+    });
 
-    shoukaku.on('ready', (name) => console.log(`🎵 Lavalink Node "${name}" is connected.`));
-    shoukaku.on('error', (name, error) => console.error(`❌ Lavalink Node "${name}" Error:`, error));
+    kazagumo.shoukaku.on('ready', (name) => console.log(`🎵 Lavalink Node "${name}" is connected.`));
+    kazagumo.shoukaku.on('error', (name, error) => console.error(`❌ Lavalink Node "${name}" Error:`, error));
 
     kazagumo.on('playerStart', (player, track) => {
         player.data.get('message')?.channel.send(`🎶 En train de jouer : **${track.title}**`);
