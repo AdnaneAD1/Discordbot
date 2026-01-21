@@ -1,13 +1,13 @@
 const { db } = require('../services/firebase');
 
 const DEFAULT_CODM_GRADES = [
-    { name: "Recrue", xp: 0 },
-    { name: "Vétéran", xp: 200 },
-    { name: "Élite", xp: 600 },
-    { name: "Pro", xp: 1200 },
-    { name: "Maître", xp: 2500 },
-    { name: "Grand Maître", xp: 5000 },
-    { name: "Légendaire", xp: 10000 }
+    { name: "Recrue", xp: 0, emoji: "🥉" },
+    { name: "Vétéran", xp: 200, emoji: "🎖️" },
+    { name: "Élite", xp: 600, emoji: "🏅" },
+    { name: "Pro", xp: 1200, emoji: "🎖️" },
+    { name: "Maître", xp: 2500, emoji: "🏆" },
+    { name: "Grand Maître", xp: 5000, emoji: "🛡️" },
+    { name: "Légendaire", xp: 10000, emoji: "👑" }
 ];
 
 async function addXP(member, amount, source = 'message') {
@@ -62,7 +62,8 @@ async function addXP(member, amount, source = 'message') {
         if (channelConfig.exists && channelConfig.data().rankUpChannelId) {
             const channel = member.guild.channels.cache.get(channelConfig.data().rankUpChannelId);
             if (channel) {
-                await channel.send(`🎖️ Félicitations ${member} ! Tu viens de monter en grade : **${newGrade}** ! 🚀`);
+                const gradeObj = codmGrades.find(g => g.name === newGrade) || { emoji: "🎖️" };
+                await channel.send(`${gradeObj.emoji} Félicitations ${member} ! Tu viens de monter en grade : **${newGrade}** ! 🚀`);
             }
         }
     }

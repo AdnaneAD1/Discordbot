@@ -65,6 +65,16 @@ async function endGiveaway(client, messageId) {
     await gRef.update({ ended: true, winners: winnersIds });
 
     if (channel) {
+        // Remove buttons from original message
+        try {
+            const message = await channel.messages.fetch(messageId);
+            if (message) {
+                await message.edit({ components: [] }).catch(() => { });
+            }
+        } catch (err) {
+            console.error(`Impossible de modifier le message du giveaway ${messageId}:`, err);
+        }
+
         const winnersMention = winnersIds.map(id => `<@${id}>`).join(', ');
         await channel.send(`🎉 **Félicitations aux gagnants !**\n\nBravo à ${winnersMention} qui remporte(nt) : **${data.prize}** ! 🎁`);
 
