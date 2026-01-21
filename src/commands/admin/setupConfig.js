@@ -12,7 +12,10 @@ module.exports = {
         .addRoleOption(option => option.setName('member_role').setDescription('Rôle pour les membres vérifiés'))
         .addStringOption(option => option.setName('server_name').setDescription('Nom personnalisé du serveur'))
         .addStringOption(option => option.setName('color').setDescription('Couleur des embeds en HEX (ex: #FF0000)'))
+        .addChannelOption(option => option.setName('giveaway_channel').setDescription('Salon pour les annonces de giveaways'))
         .addChannelOption(option => option.setName('music_channel').setDescription('Salon vocal par défaut pour la musique'))
+        .addChannelOption(option => option.setName('music_text_channel').setDescription('Salon textuel EXCLUSIF pour les commandes de musique'))
+        .addChannelOption(option => option.setName('rank_up_channel').setDescription('Salon pour annoncer les paliers d\'XP franchis'))
         .addIntegerOption(option => option.setName('xp_veteran').setDescription('XP pour Vétéran'))
         .addIntegerOption(option => option.setName('xp_elite').setDescription('XP pour Élite'))
         .addIntegerOption(option => option.setName('xp_pro').setDescription('XP pour Pro'))
@@ -30,7 +33,10 @@ module.exports = {
             memberRole: interaction.options.getRole('member_role'),
             serverName: interaction.options.getString('server_name'),
             color: interaction.options.getString('color'),
+            giveawayChannel: interaction.options.getChannel('giveaway_channel'),
             musicChannel: interaction.options.getChannel('music_channel'),
+            musicTextChannel: interaction.options.getChannel('music_text_channel'),
+            rankUpChannel: interaction.options.getChannel('rank_up_channel'),
             xpVeteran: interaction.options.getInteger('xp_veteran'),
             xpElite: interaction.options.getInteger('xp_elite'),
             xpPro: interaction.options.getInteger('xp_pro'),
@@ -46,9 +52,34 @@ module.exports = {
             updates.push(`✅ Bienvenue : <#${options.welcomeChannel.id}>`);
         }
 
+        if (options.giveawayChannel) {
+            await guildConfigRef.doc('channels').set({ giveawayChannelId: options.giveawayChannel.id }, { merge: true });
+            updates.push(`✅ Giveaways : <#${options.giveawayChannel.id}>`);
+        }
+
+        if (options.ticketCategory) {
+            await guildConfigRef.doc('tickets').set({ categoryId: options.ticketCategory.id }, { merge: true });
+            updates.push(`✅ Catégorie Tickets : **${options.ticketCategory.name}**`);
+        }
+
+        if (options.staffRole) {
+            await guildConfigRef.doc('tickets').set({ staffRoleId: options.staffRole.id }, { merge: true });
+            updates.push(`✅ Rôle Staff : <@&${options.staffRole.id}>`);
+        }
+
         if (options.musicChannel) {
             await guildConfigRef.doc('channels').set({ defaultVoiceChannelId: options.musicChannel.id }, { merge: true });
-            updates.push(`✅ Salon Musique : <#${options.musicChannel.id}>`);
+            updates.push(`✅ Salon Vocal Musique : <#${options.musicChannel.id}>`);
+        }
+
+        if (options.musicTextChannel) {
+            await guildConfigRef.doc('channels').set({ musicTextChannelId: options.musicTextChannel.id }, { merge: true });
+            updates.push(`✅ Salon Textuel Musique : <#${options.musicTextChannel.id}>`);
+        }
+
+        if (options.rankUpChannel) {
+            await guildConfigRef.doc('channels').set({ rankUpChannelId: options.rankUpChannel.id }, { merge: true });
+            updates.push(`✅ Salon Grades : <#${options.rankUpChannel.id}>`);
         }
         // Handle XP Grades customization
         if (options.xpVeteran || options.xpElite || options.xpPro || options.xpMaitre || options.xpGrandMaitre || options.xpLegendaire) {

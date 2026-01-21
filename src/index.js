@@ -52,3 +52,5 @@ for (const file of eventFiles) {
 }
 
 client.login(process.env.DISCORD_TOKEN);
+
+module.exports = { client };

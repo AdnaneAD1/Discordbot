@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, ChannelType } = require('discord.js');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -10,6 +10,25 @@ module.exports = {
                 console.error(`No command matching ${interaction.commandName} was found.`);
                 return;
             }
+
+            // --- Music Channel Restriction ---
+            const musicCommands = ['play', 'pause', 'skip', 'stop', 'back', 'loop', 'queue', 'nowplaying'];
+            if (musicCommands.includes(interaction.commandName)) {
+                const { db } = require('../services/firebase');
+                const channelConfig = await db.collection('guilds').doc(interaction.guild.id).collection('config').doc('channels').get();
+                if (channelConfig.exists) {
+                    const musicTextChannelId = channelConfig.data().musicTextChannelId;
+                    const isVoiceChat = interaction.channel.type === ChannelType.GuildVoice;
+
+                    if (musicTextChannelId && interaction.channelId !== musicTextChannelId && !isVoiceChat) {
+                        return interaction.reply({
+                            content: `❌ Les commandes de musique doivent être utilisées dans le salon <#${musicTextChannelId}> ou dans le chat de ton salon vocal.`,
+                            flags: [64]
+                        });
+                    }
+                }
+            }
+            // ---------------------------------
 
             try {
                 await command.execute(interaction);

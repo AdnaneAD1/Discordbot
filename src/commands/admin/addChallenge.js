@@ -27,8 +27,7 @@ module.exports = {
         });
 
         await interaction.reply({
-            content: `✅ Défi **"${title}"** ajouté avec succès ! Récompense : **${reward} XP**. Expire dans ${duration} jours.`,
-            flags: [64] // 64 is the bitfield for EPHEMERAL
+            content: `@everyone 🎯 **Nouveau Défi disponible !**\n\n> **${title}**\n💰 Récompense : **${reward} XP**\n⏳ Expire dans ${duration} jours.\n\nUtilisez \`/defi\` pour voir tous les défis actifs !`,
         });
     },
 };

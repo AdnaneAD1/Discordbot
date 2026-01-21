@@ -4,8 +4,8 @@ const { db } = require('../services/firebase');
 async function createTicket(interaction, type) {
     const { guild, user } = interaction;
 
-    // Check config
-    const configDoc = await db.collection('config').doc('tickets').get();
+    // Check config (Guild-specific)
+    const configDoc = await db.collection('guilds').doc(guild.id).collection('config').doc('tickets').get();
     const config = configDoc.data() || {};
     const categoryId = config.categoryId;
     const staffRoleId = config.staffRoleId;
@@ -30,8 +30,8 @@ async function createTicket(interaction, type) {
         ],
     });
 
-    // Save to DB
-    await db.collection('tickets').add({
+    // Save to DB (Guild-specific)
+    await db.collection('guilds').doc(guild.id).collection('tickets').add({
         userId: user.id,
         channelId: channel.id,
         type: type,
@@ -58,19 +58,18 @@ async function createTicket(interaction, type) {
     return channel;
 }
 
-async function closeTicket(channel, moderator) {
-    // Update status in DB
-    const snapshot = await db.collection('tickets').where('channelId', '==', channel.id).get();
-    snapshot.forEach(async (doc) => {
-        await doc.ref.update({
-            status: 'closed',
-            closedAt: new Date(),
-            closedBy: moderator.id,
-        });
+// Update status in DB (Guild-specific)
+const snapshot = await db.collection('guilds').doc(channel.guild.id).collection('tickets').where('channelId', '==', channel.id).get();
+snapshot.forEach(async (doc) => {
+    await doc.ref.update({
+        status: 'closed',
+        closedAt: new Date(),
+        closedBy: moderator.id,
     });
+});
 
-    await channel.send('Ce ticket sera fermé dans 5 secondes...');
-    setTimeout(() => channel.delete(), 5000);
-}
+await channel.send('Ce ticket sera fermé dans 5 secondes...');
+setTimeout(() => channel.delete(), 5000);
+
 
 module.exports = { createTicket, closeTicket };

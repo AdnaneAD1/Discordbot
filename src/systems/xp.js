@@ -56,6 +56,15 @@ async function addXP(member, amount, source = 'message') {
     // Check if grade changed to update roles
     if (newGrade !== userData.level) {
         await updateGradeRoles(member, newGrade, codmGrades);
+
+        // Notify in rank-up channel if configured
+        const channelConfig = await db.collection('guilds').doc(guildId).collection('config').doc('channels').get();
+        if (channelConfig.exists && channelConfig.data().rankUpChannelId) {
+            const channel = member.guild.channels.cache.get(channelConfig.data().rankUpChannelId);
+            if (channel) {
+                await channel.send(`🎖️ Félicitations ${member} ! Tu viens de monter en grade : **${newGrade}** ! 🚀`);
+            }
+        }
     }
 }
 
