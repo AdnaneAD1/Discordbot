@@ -39,6 +39,39 @@ module.exports = {
             } else if (interaction.customId === 'giveaway_entry') {
                 const { handleEntry } = require('../systems/giveaways');
                 await handleEntry(interaction);
+            } else if (interaction.customId.startsWith('music_')) {
+                const { kazagumo } = interaction.client;
+                const player = kazagumo.players.get(interaction.guild.id);
+
+                if (!player) return interaction.reply({ content: '❌ Plus de musique en cours.', flags: [64] });
+
+                const action = interaction.customId.replace('music_', '');
+
+                switch (action) {
+                    case 'back':
+                        if (!player.queue.previous) return interaction.reply({ content: '❌ Pas de morceau précédent.', flags: [64] });
+                        player.queue.unshift(player.queue.previous);
+                        player.skip();
+                        await interaction.reply({ content: '⏪ Retour au morceau précédent !', flags: [64] });
+                        break;
+                    case 'loop':
+                        const newLoop = player.loop === 'none' ? 'track' : (player.loop === 'track' ? 'queue' : 'none');
+                        player.setLoop(newLoop);
+                        await interaction.reply({ content: `🔁 Mode répétition : **${newLoop}**`, flags: [64] });
+                        break;
+                    case 'pause':
+                        player.pause(!player.paused);
+                        await interaction.reply({ content: player.paused ? '⏸️ Musique en pause' : '▶️ Musique reprise', flags: [64] });
+                        break;
+                    case 'stop':
+                        player.destroy();
+                        await interaction.reply({ content: '⏹️ Musique arrêtée et file nettoyée.', flags: [64] });
+                        break;
+                    case 'skip':
+                        player.skip();
+                        await interaction.reply({ content: '⏭️ Morceau suivant !', flags: [64] });
+                        break;
+                }
             }
         }
     }

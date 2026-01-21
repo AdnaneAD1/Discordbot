@@ -1,5 +1,6 @@
 const { Shoukaku, Connectors } = require('shoukaku');
 const { Kazagumo, Plugins } = require('kazagumo');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const Spotify = require('kazagumo-spotify');
 
 const nodes = [{
@@ -36,7 +37,19 @@ const initMusic = (client) => {
     kazagumo.shoukaku.on('error', (name, error) => console.error(`❌ Lavalink Node "${name}" Error:`, error));
 
     kazagumo.on('playerStart', (player, track) => {
-        player.data.get('message')?.channel.send(`🎶 En train de jouer : **${track.title}**`);
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder().setCustomId('music_back').setLabel('Back').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('music_loop').setLabel('Loop').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('music_pause').setLabel('Resume & Pause').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('music_stop').setLabel('Stop').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('music_skip').setLabel('Skip').setStyle(ButtonStyle.Primary),
+            );
+
+        player.data.get('message')?.channel.send({
+            content: `🎵 **Started playing ${track.title} in General** 🎧`,
+            components: [row]
+        });
     });
 
     kazagumo.on('playerEmpty', (player) => {
