@@ -52,7 +52,7 @@ module.exports = {
                         if (!player.queue.previous) return interaction.reply({ content: '❌ Pas de morceau précédent.', flags: [64] });
                         player.queue.unshift(player.queue.previous);
                         player.skip();
-                        await interaction.reply({ content: '⏪ Retour au morceau précédent !', flags: [64] });
+                        await interaction.reply({ content: '⏪ Retour au morceau précédent !' });
                         break;
                     case 'loop':
                         // Kazagumo loop modes: 'none', 'track', 'queue'
@@ -62,19 +62,19 @@ module.exports = {
 
                         player.setLoop(newLoop);
                         const loopMessages = { 'none': 'désactivée', 'track': 'du morceau actuel', 'queue': 'de la file d\'attente' };
-                        await interaction.reply({ content: `🔁 Répétition **${loopMessages[newLoop]}** !`, flags: [64] });
+                        await interaction.reply({ content: `🔁 Répétition **${loopMessages[newLoop]}** !` });
                         break;
                     case 'pause':
                         player.pause(!player.paused);
-                        await interaction.reply({ content: player.paused ? '⏸️ Musique en pause' : '▶️ Musique reprise', flags: [64] });
+                        await interaction.reply({ content: player.paused ? '⏸️ Musique en pause' : '▶️ Musique reprise' });
                         break;
                     case 'stop':
                         player.destroy();
-                        await interaction.reply({ content: '⏹️ Musique arrêtée et file nettoyée.', flags: [64] });
+                        await interaction.reply({ content: '⏹️ Musique arrêtée et file nettoyée.' });
                         break;
                     case 'skip':
                         player.skip();
-                        await interaction.reply({ content: '⏭️ Morceau suivant !', flags: [64] });
+                        await interaction.reply({ content: '⏭️ Morceau suivant !' });
                         break;
                 }
             }
