@@ -22,10 +22,16 @@ module.exports = {
         if (config && config.welcomeChannelId) {
             const channel = member.guild.channels.cache.get(config.welcomeChannelId);
             if (channel) {
+                // Find rules channel (either by ID from config or by name)
+                let rulesChannel = member.guild.channels.cache.get(config.rulesChannelId);
+                if (!rulesChannel) {
+                    rulesChannel = member.guild.channels.cache.find(c => c.name.includes('règlement') || c.name.includes('rules'));
+                }
+
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor('#0099ff')
-                    .setTitle(`Bienvenue sur le serveur de mister A`)
-                    .setDescription(`Yoooo ${member}, bienvenue dans la team.\n\nN'oublie pas de lire le règlement dans le salon <#${config.rulesChannelId || '📋┃règlement'}>`)
+                    .setTitle(`Bienvenue sur le serveur de Mister A ${member}`)
+                    .setDescription(`N'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#règlement'}`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
 
