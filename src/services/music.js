@@ -39,11 +39,11 @@ const initMusic = (client) => {
     kazagumo.on('playerStart', (player, track) => {
         const row = new ActionRowBuilder()
             .addComponents(
-                new ButtonBuilder().setCustomId('music_back').setEmoji('⏪').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId('music_loop').setEmoji('🔁').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('music_pause').setEmoji('⏯️').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('music_stop').setEmoji('⏹️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('music_back').setEmoji('⏮️').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('music_pause').setEmoji('⏸️').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('music_skip').setEmoji('⏭️').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('music_stop').setEmoji('⏹️').setStyle(ButtonStyle.Secondary)
             );
 
         player.data.get('message')?.channel.send({
