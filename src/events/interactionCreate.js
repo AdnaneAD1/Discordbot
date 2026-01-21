@@ -55,9 +55,14 @@ module.exports = {
                         await interaction.reply({ content: '⏪ Retour au morceau précédent !', flags: [64] });
                         break;
                     case 'loop':
-                        const newLoop = player.loop === 'none' ? 'track' : (player.loop === 'track' ? 'queue' : 'none');
+                        // Kazagumo loop modes: 'none', 'track', 'queue'
+                        let newLoop = 'none';
+                        if (player.loop === 'none') newLoop = 'track';
+                        else if (player.loop === 'track') newLoop = 'queue';
+
                         player.setLoop(newLoop);
-                        await interaction.reply({ content: `🔁 Mode répétition : **${newLoop}**`, flags: [64] });
+                        const loopMessages = { 'none': 'désactivée', 'track': 'du morceau actuel', 'queue': 'de la file d\'attente' };
+                        await interaction.reply({ content: `🔁 Répétition **${loopMessages[newLoop]}** !`, flags: [64] });
                         break;
                     case 'pause':
                         player.pause(!player.paused);

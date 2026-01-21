@@ -39,15 +39,15 @@ const initMusic = (client) => {
     kazagumo.on('playerStart', (player, track) => {
         const row = new ActionRowBuilder()
             .addComponents(
-                new ButtonBuilder().setCustomId('music_back').setLabel('Back').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('music_loop').setLabel('Loop').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('music_pause').setLabel('Resume & Pause').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('music_stop').setLabel('Stop').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('music_skip').setLabel('Skip').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('music_back').setEmoji('⏪').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('music_loop').setEmoji('🔁').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('music_pause').setEmoji('⏯️').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('music_stop').setEmoji('⏹️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('music_skip').setEmoji('⏭️').setStyle(ButtonStyle.Primary),
             );
 
         player.data.get('message')?.channel.send({
-            content: `🎵 **Started playing ${track.title} in General** 🎧`,
+            content: `🎵 **En train de jouer : ${track.title}** 🎧`,
             components: [row]
         });
     });
