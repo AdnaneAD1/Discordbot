@@ -1,18 +1,12 @@
 const { db } = require('../services/firebase');
 
 const CODM_GRADES = [
-    { name: "Recrue I", xp: 0 },
-    { name: "Recrue II", xp: 50 },
-    { name: "Soudat I", xp: 150 },
-    { name: "Soudat II", xp: 300 },
-    { name: "Élite I", xp: 600 },
-    { name: "Élite II", xp: 1000 },
-    { name: "Pro I", xp: 1500 },
-    { name: "Pro II", xp: 2100 },
-    { name: "Maître I", xp: 3000 },
-    { name: "Maître II", xp: 4000 },
-    { name: "Grand Maître I", xp: 5500 },
-    { name: "Grand Maître II", xp: 7500 },
+    { name: "Recrue", xp: 0 },
+    { name: "Vétéran", xp: 200 },
+    { name: "Élite", xp: 600 },
+    { name: "Pro", xp: 1200 },
+    { name: "Maître", xp: 2500 },
+    { name: "Grand Maître", xp: 5000 },
     { name: "Légendaire", xp: 10000 }
 ];
 

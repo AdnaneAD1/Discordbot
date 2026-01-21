@@ -28,16 +28,7 @@ module.exports = {
                 }
             }
         } else if (interaction.isButton()) {
-            if (interaction.customId === 'accept_rules') {
-                const { acceptRules } = require('../systems/regulation');
-                const success = await acceptRules(interaction.member);
-
-                if (success) {
-                    await interaction.reply({ content: '✅ Vous avez accepté le règlement ! Accès accordé.', ephemeral: true });
-                } else {
-                    await interaction.reply({ content: '❌ Une erreur est survenue lors de l\'acceptation du règlement. Contactez un administrateur.', ephemeral: true });
-                }
-            } else if (interaction.customId.startsWith('ticket_')) {
+            if (interaction.customId.startsWith('ticket_')) {
                 const type = interaction.customId.split('_')[1];
                 const { createTicket } = require('../systems/tickets');
                 const channel = await createTicket(interaction, type);
@@ -50,5 +41,5 @@ module.exports = {
                 await handleEntry(interaction);
             }
         }
-    },
+    }
 };

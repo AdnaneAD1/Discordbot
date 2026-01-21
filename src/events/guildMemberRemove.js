@@ -11,8 +11,8 @@ module.exports = {
         const config = (await configRef.get()).data();
 
         // Goodbye message
-        if (config && config.welcomeChannelId) {
-            const channel = member.guild.channels.cache.get(config.welcomeChannelId);
+        if (config && config.goodbyeChannelId) {
+            const channel = member.guild.channels.cache.get(config.goodbyeChannelId);
             if (channel) {
                 const leaveEmbed = new EmbedBuilder()
                     .setColor('#ff4757')

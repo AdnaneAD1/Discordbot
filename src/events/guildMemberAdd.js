@@ -13,9 +13,9 @@ module.exports = {
         const config = (await configRef.get()).data();
         const roles = (await rolesRef.get()).data();
 
-        // Assign "Non-verified" role if exists
-        if (roles && roles.unverifiedRoleId) {
-            await member.roles.add(roles.unverifiedRoleId).catch(console.error);
+        // Assign "Novice" role if exists
+        if (roles && roles.defaultRoleId) {
+            await member.roles.add(roles.defaultRoleId).catch(console.error);
         }
 
         // Welcome message
@@ -24,8 +24,8 @@ module.exports = {
             if (channel) {
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor('#0099ff')
-                    .setTitle(`Bienvenue sur le serveur de CODM Streamer !`)
-                    .setDescription(`Salut ${member}, ravi de te voir ici ! \n\nPour accéder au reste du serveur, merci de lire et d'accepter le règlement dans <#${config.rulesChannelId || 'le salon dédié'}>.`)
+                    .setTitle(`Bienvenue sur le serveur de mister A`)
+                    .setDescription(`Yoooo ${member}, bienvenue dans la team.\n\nN'oublie pas de lire le règlement dans le salon <#${config.rulesChannelId || '📋┃règlement'}>`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setTimestamp();
 
