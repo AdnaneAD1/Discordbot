@@ -14,11 +14,17 @@ module.exports = {
             try {
                 await command.execute(interaction);
             } catch (error) {
-                console.error(error);
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-                } else {
-                    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+                console.error('Command Execution Error:', error);
+
+                // Check if interaction is still valid (less than 15 mins but usually 3s for initial reply)
+                try {
+                    if (interaction.replied || interaction.deferred) {
+                        await interaction.followUp({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', ephemeral: true });
+                    } else {
+                        await interaction.reply({ content: '❌ Une erreur est survenue lors de l\'exécution de cette commande.', ephemeral: true });
+                    }
+                } catch (replyError) {
+                    console.error('Failed to send error reply:', replyError.message);
                 }
             }
         } else if (interaction.isButton()) {

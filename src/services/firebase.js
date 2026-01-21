@@ -5,10 +5,16 @@ if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !p
     console.error('Vérifiez que FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL et FIREBASE_PRIVATE_KEY sont bien configurées.');
 }
 
+let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+if (privateKey) {
+    // Handle cases where the key might be wrapped in quotes or have literal \n
+    privateKey = privateKey.replace(/^"(.*)"$/, '$1').replace(/\\n/g, '\n');
+}
+
 const serviceAccount = {
     project_id: process.env.FIREBASE_PROJECT_ID,
     client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    private_key: privateKey,
 };
 
 if (!admin.apps.length) {
