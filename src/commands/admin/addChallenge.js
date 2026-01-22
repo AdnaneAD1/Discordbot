@@ -18,7 +18,7 @@ module.exports = {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + duration);
 
-        await db.collection('guilds').doc(guildId).collection('challenges').add({
+        const docRef = await db.collection('guilds').doc(guildId).collection('challenges').add({
             title,
             rewardXp: reward,
             expiresAt: expiresAt,
@@ -27,7 +27,7 @@ module.exports = {
         });
 
         await interaction.reply({
-            content: `@everyone 🎯 **Nouveau Défi disponible !**\n\n> **${title}**\n💰 Récompense : **${reward} XP**\n⏳ Expire dans ${duration} jours.\n\nUtilisez \`/defi\` pour voir tous les défis actifs !`,
+            content: `@everyone 🎯 **Nouveau Défi disponible !**\n\n> **${title}**\n🆔 ID du défi : \`${docRef.id}\`\n💰 Récompense : **${reward} XP**\n⏳ Expire dans ${duration} jours.\n\nUtilisez \`/defi\` pour voir tous les défis actifs !`,
         });
     },
 };

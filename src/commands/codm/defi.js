@@ -21,7 +21,7 @@ module.exports = {
         challenges.forEach(c => {
             challengeEmbed.addFields({
                 name: c.title,
-                value: `💰 **Récompense**: ${c.rewardXp} XP\n📅 **Expire le**: <t:${Math.floor(c.expiresAt.seconds)}:R>`
+                value: `🆔 **ID**: \`${c.id}\`\n💰 **Récompense**: ${c.rewardXp} XP\n📅 **Expire le**: <t:${Math.floor(c.expiresAt.seconds)}:R>`
             });
         });
 

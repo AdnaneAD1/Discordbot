@@ -11,18 +11,6 @@ module.exports = {
                 return;
             }
 
-            // Handle autocomplete
-            if (interaction.isAutocomplete()) {
-                if (command.autocomplete) {
-                    try {
-                        await command.autocomplete(interaction);
-                    } catch (error) {
-                        console.error('Autocomplete Error:', error);
-                    }
-                }
-                return;
-            }
-
             // --- Music Channel Restriction ---
             const musicCommands = ['play', 'pause', 'skip', 'stop', 'back', 'loop', 'queue', 'nowplaying'];
             if (musicCommands.includes(interaction.commandName)) {
