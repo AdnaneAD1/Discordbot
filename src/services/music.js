@@ -48,7 +48,7 @@ const initMusic = (client) => {
 
         const row2 = new ActionRowBuilder()
             .addComponents(
-                new ButtonBuilder().setCustomId('music_queue').setEmoji('�').setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId('music_queue').setEmoji('📝').setStyle(ButtonStyle.Secondary)
             );
 
         player.data.get('message')?.channel.send({
