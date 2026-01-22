@@ -23,11 +23,12 @@ module.exports = {
 
             const focusedValue = interaction.options.getFocused().toLowerCase();
 
-            // Fetch active challenges for this guild
+            // Fetch active challenges for this guild (limit to 25 for performance)
             const challengesSnapshot = await db.collection('guilds')
                 .doc(guildId)
                 .collection('challenges')
                 .where('active', '==', true)
+                .limit(25)
                 .get();
 
             if (challengesSnapshot.empty) {
@@ -38,8 +39,19 @@ module.exports = {
             }
 
             const challenges = [];
+            const now = new Date();
+
             challengesSnapshot.forEach(doc => {
                 const data = doc.data();
+
+                // Check expiration
+                const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+                if (expiresAt < now) {
+                    // Mark as expired in background (don't await to keep autocomplete fast)
+                    doc.ref.update({ active: false }).catch(console.error);
+                    return; // Skip expired challenges
+                }
+
                 if (data.title && data.rewardXp !== undefined) {
                     challenges.push({
                         name: `${data.title} (${data.rewardXp} XP)`,
