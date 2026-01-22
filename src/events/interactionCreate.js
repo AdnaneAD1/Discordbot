@@ -95,6 +95,38 @@ module.exports = {
                         player.skip();
                         await interaction.reply({ content: '⏭️ Morceau suivant !' });
                         break;
+                    case 'queue':
+                        const queue = player.queue;
+                        const currentTrack = player.queue.current;
+
+                        const qEmbed = new EmbedBuilder()
+                            .setColor('#febc11')
+                            .setTitle(`🎶 File d'attente - ${interaction.guild.name}`)
+                            .setThumbnail(currentTrack?.thumbnail || null);
+
+                        let qDescription = `**En cours :**\n[${currentTrack.title}](${currentTrack.uri}) - \`${interaction.client.kazagumo.utils.formatTime(currentTrack.length)}\`\n\n`;
+
+                        if (queue.length === 0) {
+                            qDescription += "*La file d'attente est vide.*";
+                        } else {
+                            qDescription += "**À venir :**\n";
+                            const tracks = queue.slice(0, 10).map((track, index) => {
+                                return `**${index + 1}.** [${track.title}](${track.uri}) - \`${interaction.client.kazagumo.utils.formatTime(track.length)}\``;
+                            });
+
+                            qDescription += tracks.join('\n');
+
+                            if (queue.length > 10) {
+                                qDescription += `\n\n*...et ${queue.length - 10} autres morceaux.*`;
+                            }
+                        }
+
+                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${interaction.client.kazagumo.utils.formatTime(player.queue.duration)}\``;
+
+                        qEmbed.setDescription(qDescription);
+
+                        await interaction.reply({ embeds: [qEmbed], flags: [64] });
+                        break;
                 }
             }
         }

@@ -46,9 +46,14 @@ const initMusic = (client) => {
                 new ButtonBuilder().setCustomId('music_stop').setEmoji('⏹️').setStyle(ButtonStyle.Secondary)
             );
 
+        const row2 = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder().setCustomId('music_queue').setEmoji('�').setStyle(ButtonStyle.Secondary)
+            );
+
         player.data.get('message')?.channel.send({
             content: `🎵 **En train de jouer : ${track.title}** 🎧`,
-            components: [row]
+            components: [row, row2]
         });
     });
 
