@@ -95,29 +95,37 @@ const checkTikTok = async (client, account) => {
             return match ? match[1] : null;
         };
 
-        // --- 1. LIVE DETECTION ---
+        // --- 1. LIVE DETECTION & DATA ---
         let isLive = false;
-        let liveTitle = "Live TikTok en cours";
-        let liveCover = null;
-        let userAvatar = null;
 
-        // Multiple check points for status: 2 means LIVE
-        if (sigiState?.LiveRoom?.liveRoomUserInfo?.user?.status === 2 ||
-            universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.userInfo?.user?.status === 2) {
-            isLive = true;
-        } else if (html.includes('"status":2') && html.includes('"liveRoom"')) {
+        // Data sources
+        const userInfo = sigiState?.LiveRoom?.liveRoomUserInfo || universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.userInfo;
+        const user = userInfo?.user;
+        const liveRoom = userInfo?.liveRoom;
+
+        if (user?.status === 2 || html.includes('"status":2')) {
             isLive = true;
         }
 
-        if (isLive) {
-            liveTitle = getMeta("og:title") || getMeta("twitter:title") || `Live de ${username}`;
-            liveCover = getMeta("og:image") || getMeta("twitter:image");
-            userAvatar = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.avatarLarger ||
-                universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.userInfo?.user?.avatarLarger;
+        const nickname = user?.nickname || username;
+        const liveTitle = liveRoom?.title || getMeta("og:title") || `Live de ${nickname}`;
+        // Robust cover search: JSON first, then Meta
+        const liveCover = liveRoom?.cover?.url_list?.[0] || getMeta("og:image");
+        const userAvatar = user?.avatarLarger || 'https://sf-static.six-group.com/images/tiktok-logo.png';
+        const viewerCount = liveRoom?.viewerCount || 0;
+        const startTime = liveRoom?.startTime; // Unix timestamp in seconds
+
+        // Calculate Duration
+        let durationText = "En direct";
+        const now = Date.now();
+        if (startTime) {
+            const diff = Math.floor(now / 1000) - startTime;
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            durationText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
         }
 
         // --- LIVE NOTIFICATION LOGIC ---
-        const now = Date.now();
         const ONE_HOUR = 60 * 60 * 1000;
 
         // Went LIVE (First announcement)
@@ -130,12 +138,15 @@ const checkTikTok = async (client, account) => {
                 if (channel) {
                     const embed = new EmbedBuilder()
                         .setColor('#ff0050')
-                        .setTitle(`🔴 ${username} est en LIVE sur TikTok !`)
+                        .setTitle(`🔴 ${nickname} est en LIVE sur TikTok !`)
                         .setDescription(liveTitle)
                         .setURL(`https://www.tiktok.com/@${username}/live`)
-                        .setThumbnail(userAvatar || 'https://sf-static.six-group.com/images/tiktok-logo.png')
+                        .setThumbnail(userAvatar)
                         .setImage(liveCover)
-                        .addFields({ name: 'Statut', value: 'En direct maintenant ! 🎥' })
+                        .addFields(
+                            { name: 'Spectateurs', value: `👥 \`${viewerCount}\``, inline: true },
+                            { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
+                        )
                         .setTimestamp();
 
                     const row = new ActionRowBuilder().addComponents(
@@ -146,7 +157,7 @@ const checkTikTok = async (client, account) => {
                     );
 
                     await channel.send({
-                        content: `@everyone 🚨 **ALERTE LIVE** : ${username} lance son stream !`,
+                        content: `@everyone 🚨 **ALERTE LIVE** : **${nickname}** lance son stream !`,
                         embeds: [embed],
                         components: [row]
                     });
@@ -166,10 +177,15 @@ const checkTikTok = async (client, account) => {
                 if (channel) {
                     const embed = new EmbedBuilder()
                         .setColor('#ff0050')
-                        .setTitle(`@everyone ⏳ Rappel : ${username} est toujours en LIVE !`)
+                        .setTitle(`⏳ Rappel : ${nickname} est toujours en LIVE !`)
                         .setDescription(`Rejoignez le stream si ce n'est pas déjà fait !\n\n**${liveTitle}**`)
                         .setURL(`https://www.tiktok.com/@${username}/live`)
-                        .setThumbnail(userAvatar || 'https://sf-static.six-group.com/images/tiktok-logo.png')
+                        .setThumbnail(userAvatar)
+                        .setImage(liveCover)
+                        .addFields(
+                            { name: 'Spectateurs', value: `👥 \`${viewerCount}\``, inline: true },
+                            { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
+                        )
                         .setTimestamp();
 
                     const row = new ActionRowBuilder().addComponents(
@@ -180,7 +196,7 @@ const checkTikTok = async (client, account) => {
                     );
 
                     await channel.send({
-                        content: `📢 **RAPPEL** : Le live de ${username} est toujours en cours !`,
+                        content: `📢 **RAPPEL** : @everyone Le live de **${nickname}** est toujours en cours !`,
                         embeds: [embed],
                         components: [row]
                     });
