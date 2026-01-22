@@ -117,14 +117,14 @@ module.exports = {
                             .setTitle(`🎶 File d'attente - ${interaction.guild.name}`)
                             .setThumbnail(currentTrack?.thumbnail || null);
 
-                        let qDescription = `**En cours :**\n[${currentTrack.title}](${currentTrack.uri}) - \`${interaction.client.kazagumo.utils.formatTime(currentTrack.length)}\`\n\n`;
+                        let qDescription = `**En cours :**\n[${currentTrack.title}](${currentTrack.uri}) - \`${formatTime(currentTrack.length)}\`\n\n`;
 
                         if (queue.length === 0) {
                             qDescription += "*La file d'attente est vide.*";
                         } else {
                             qDescription += "**À venir :**\n";
                             const tracks = queue.slice(0, 10).map((track, index) => {
-                                return `**${index + 1}.** [${track.title}](${track.uri}) - \`${interaction.client.kazagumo.utils.formatTime(track.length)}\``;
+                                return `**${index + 1}.** [${track.title}](${track.uri}) - \`${formatTime(track.length)}\``;
                             });
 
                             qDescription += tracks.join('\n');
@@ -134,7 +134,7 @@ module.exports = {
                             }
                         }
 
-                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${interaction.client.kazagumo.utils.formatTime(player.queue.duration)}\``;
+                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(player.queue.duration)}\``;
 
                         qEmbed.setDescription(qDescription);
 
