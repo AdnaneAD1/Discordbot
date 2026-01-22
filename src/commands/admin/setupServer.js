@@ -7,7 +7,7 @@ module.exports = {
         .setDescription('Initialise automatiquement les salons et rôles standards du serveur')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [64] });
         const guild = interaction.guild;
 
         try {

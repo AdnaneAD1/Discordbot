@@ -13,7 +13,7 @@ module.exports = {
         const reason = interaction.options.getString('reason') || 'Aucune raison fournie';
 
         if (!member.bannable) {
-            return interaction.reply({ content: 'Je ne peux pas bannir ce membre.', ephemeral: true });
+            return interaction.reply({ content: 'Je ne peux pas bannir ce membre.', flags: [64] });
         }
 
         await member.ban({ reason });
@@ -28,6 +28,6 @@ module.exports = {
             createdAt: new Date(),
         });
 
-        await interaction.reply({ content: `✅ ${member.user.tag} a été banni avec succès.`, ephemeral: true });
+        await interaction.reply({ content: `✅ ${member.user.tag} a été banni avec succès.`, flags: [64] });
     },
 };

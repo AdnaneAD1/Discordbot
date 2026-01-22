@@ -9,7 +9,7 @@ module.exports = {
         const challenges = await getActiveChallenges(interaction.guild.id);
 
         if (challenges.length === 0) {
-            return interaction.reply({ content: 'Aucun défi actif pour le moment. Repasse plus tard !', ephemeral: true });
+            return interaction.reply({ content: 'Aucun défi actif pour le moment. Repasse plus tard !', flags: [64] });
         }
 
         const challengeEmbed = new EmbedBuilder()

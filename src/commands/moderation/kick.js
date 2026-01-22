@@ -13,7 +13,7 @@ module.exports = {
         const reason = interaction.options.getString('reason') || 'Aucune raison fournie';
 
         if (!member.kickable) {
-            return interaction.reply({ content: 'Je ne peux pas expulser ce membre.', ephemeral: true });
+            return interaction.reply({ content: 'Je ne peux pas expulser ce membre.', flags: [64] });
         }
 
         await member.kick(reason);
@@ -28,6 +28,6 @@ module.exports = {
             createdAt: new Date(),
         });
 
-        await interaction.reply({ content: `✅ ${member.user.tag} a été expulsé avec succès.`, ephemeral: true });
+        await interaction.reply({ content: `✅ ${member.user.tag} a été expulsé avec succès.`, flags: [64] });
     },
 };

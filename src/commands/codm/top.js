@@ -10,7 +10,7 @@ module.exports = {
         const snapshot = await db.collection('guilds').doc(guildId).collection('users').orderBy('xp', 'desc').limit(10).get();
 
         if (snapshot.empty) {
-            return interaction.reply({ content: 'Le classement est vide pour le moment.', ephemeral: true });
+            return interaction.reply({ content: 'Le classement est vide pour le moment.', flags: [64] });
         }
 
         let leaderboard = "";

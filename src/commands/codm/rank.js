@@ -14,7 +14,7 @@ module.exports = {
         const userDoc = await db.collection('guilds').doc(guildId).collection('users').doc(target.id).get();
 
         if (!userDoc.exists) {
-            return interaction.reply({ content: 'Cet utilisateur n\'a pas encore d\'XP sur ce serveur.', ephemeral: true });
+            return interaction.reply({ content: 'Cet utilisateur n\'a pas encore d\'XP sur ce serveur.', flags: [64] });
         }
 
         // Fetch dynamic grades or use defaults

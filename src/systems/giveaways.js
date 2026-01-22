@@ -101,7 +101,7 @@ async function handleEntry(interaction) {
     const participants = data.participants;
 
     if (participants.includes(interaction.user.id)) {
-        return interaction.reply({ content: 'Vous participez déjà à ce giveaway !', ephemeral: true });
+        return interaction.reply({ content: 'Vous participez déjà à ce giveaway !', flags: [64] });
     }
 
     if (data.top10Only) {
@@ -113,7 +113,7 @@ async function handleEntry(interaction) {
         if (!topIds.includes(interaction.user.id)) {
             return interaction.reply({
                 content: '❌ Ce giveaway est réservé aux membres du **TOP 10** du classement XP. Travaillez votre rank pour participer ! 🏆',
-                ephemeral: true
+                flags: [64]
             });
         }
     }
@@ -121,7 +121,7 @@ async function handleEntry(interaction) {
     participants.push(interaction.user.id);
     await gRef.update({ participants });
 
-    await interaction.reply({ content: '✅ Participation enregistrée ! Bonne chance.', ephemeral: true });
+    await interaction.reply({ content: '✅ Participation enregistrée ! Bonne chance.', flags: [64] });
 }
 
 module.exports = { startGiveaway, handleEntry };

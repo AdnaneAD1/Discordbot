@@ -106,7 +106,7 @@ module.exports = {
         }
 
         if (updates.length === 0) {
-            return interaction.reply({ content: '❌ Aucune option modifiée.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucune option modifiée.', flags: [64] });
         }
 
         const setupEmbed = new EmbedBuilder()

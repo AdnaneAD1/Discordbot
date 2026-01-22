@@ -33,6 +33,6 @@ module.exports = {
             createdAt: new Date()
         });
 
-        await interaction.reply({ content: `✅ Compte **${platform}** (${username}) ajouté ! Les notifications seront envoyées dans <#${channel.id}>.`, ephemeral: true });
+        await interaction.reply({ content: `✅ Compte **${platform}** (${username}) ajouté ! Les notifications seront envoyées dans <#${channel.id}>.`, flags: [64] });
     },
 };
