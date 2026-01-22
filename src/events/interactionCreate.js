@@ -1,5 +1,18 @@
 const { Events, ChannelType, EmbedBuilder } = require('discord.js');
 
+const formatTime = (ms) => {
+    const seconds = Math.floor((ms / 1000) % 60);
+    const minutes = Math.floor((ms / (1000 * 60)) % 60);
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+
+    const parts = [];
+    if (hours > 0) parts.push(hours);
+    parts.push(minutes < 10 && hours > 0 ? `0${minutes}` : minutes);
+    parts.push(seconds < 10 ? `0${seconds}` : seconds);
+
+    return parts.join(':');
+};
+
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
