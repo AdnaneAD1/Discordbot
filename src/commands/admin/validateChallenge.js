@@ -18,12 +18,12 @@ module.exports = {
         try {
             const guildId = interaction.guild?.id;
             if (!guildId) {
-                return interaction.respond([{ name: 'Erreur: Serveur introuvable', value: 'error' }]);
+                return interaction.respond([]);
             }
 
             const focusedValue = interaction.options.getFocused().toLowerCase();
 
-            // Fetch active challenges for this guild (limit to 25 for performance)
+            // Fetch active challenges - FAST query, no expiration check here
             const challengesSnapshot = await db.collection('guilds')
                 .doc(guildId)
                 .collection('challenges')
@@ -33,25 +33,14 @@ module.exports = {
 
             if (challengesSnapshot.empty) {
                 return interaction.respond([{
-                    name: 'Aucun défi actif. Utilisez /addchallenge pour en créer.',
+                    name: 'Aucun défi actif',
                     value: 'no_challenges'
                 }]);
             }
 
             const challenges = [];
-            const now = new Date();
-
             challengesSnapshot.forEach(doc => {
                 const data = doc.data();
-
-                // Check expiration
-                const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
-                if (expiresAt < now) {
-                    // Mark as expired in background (don't await to keep autocomplete fast)
-                    doc.ref.update({ active: false }).catch(console.error);
-                    return; // Skip expired challenges
-                }
-
                 if (data.title && data.rewardXp !== undefined) {
                     challenges.push({
                         name: `${data.title} (${data.rewardXp} XP)`,
@@ -62,33 +51,30 @@ module.exports = {
 
             if (challenges.length === 0) {
                 return interaction.respond([{
-                    name: 'Aucun défi valide trouvé',
-                    value: 'no_valid_challenges'
+                    name: 'Aucun défi valide',
+                    value: 'no_valid'
                 }]);
             }
 
-            // Filter based on what the user is typing
-            const filtered = challenges.filter(choice =>
-                choice.name.toLowerCase().includes(focusedValue)
-            ).slice(0, 25); // Discord limit
+            // Filter based on user input
+            const filtered = focusedValue
+                ? challenges.filter(c => c.name.toLowerCase().includes(focusedValue)).slice(0, 25)
+                : challenges.slice(0, 25);
 
-            await interaction.respond(filtered.length > 0 ? filtered : challenges.slice(0, 25));
+            await interaction.respond(filtered.length > 0 ? filtered : [{ name: 'Aucun résultat', value: 'none' }]);
         } catch (error) {
             console.error('Autocomplete error:', error);
-            await interaction.respond([{
-                name: 'Erreur de chargement. Vérifiez les logs.',
-                value: 'error'
-            }]);
+            await interaction.respond([]);
         }
     },
     async execute(interaction) {
         const targetUser = interaction.options.getUser('user');
         const challengeId = interaction.options.getString('challenge');
 
-        // Validate that a real challenge was selected
-        if (!challengeId || challengeId === 'error' || challengeId === 'no_challenges' || challengeId === 'no_valid_challenges') {
+        // Validate selection
+        if (!challengeId || ['no_challenges', 'no_valid', 'none'].includes(challengeId)) {
             return interaction.reply({
-                content: '❌ Veuillez sélectionner un défi valide dans la liste.',
+                content: '❌ Aucun défi valide sélectionné. Créez d\'abord un défi avec `/addchallenge`.',
                 ephemeral: true
             });
         }
