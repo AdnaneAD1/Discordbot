@@ -1,4 +1,4 @@
-const { Events, ChannelType } = require('discord.js');
+const { Events, ChannelType, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     name: Events.InteractionCreate,
