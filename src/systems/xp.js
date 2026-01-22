@@ -62,8 +62,9 @@ async function addXP(member, amount, source = 'message') {
         if (channelConfig.exists && channelConfig.data().rankUpChannelId) {
             const channel = member.guild.channels.cache.get(channelConfig.data().rankUpChannelId);
             if (channel) {
-                const gradeObj = codmGrades.find(g => g.name === newGrade) || { emoji: "🎖️" };
-                await channel.send(`${gradeObj.emoji} Félicitations ${member} ! Tu viens de monter en grade : **${newGrade}** ! 🚀`);
+                const gradeObj = codmGrades.find(g => g.name === newGrade);
+                const gradeEmoji = gradeObj?.emoji || '🎖️';
+                await channel.send(`${gradeEmoji} Félicitations ${member} ! Tu viens de monter en grade : **${newGrade}** ! 🚀`);
             }
         }
     }
