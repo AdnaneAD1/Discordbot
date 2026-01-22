@@ -166,7 +166,7 @@ const checkTikTok = async (client, account) => {
                 if (channel) {
                     const embed = new EmbedBuilder()
                         .setColor('#ff0050')
-                        .setTitle(`⏳ Rappel : ${username} est toujours en LIVE !`)
+                        .setTitle(`@everyone ⏳ Rappel : ${username} est toujours en LIVE !`)
                         .setDescription(`Rejoignez le stream si ce n'est pas déjà fait !\n\n**${liveTitle}**`)
                         .setURL(`https://www.tiktok.com/@${username}/live`)
                         .setThumbnail(userAvatar || 'https://sf-static.six-group.com/images/tiktok-logo.png')
