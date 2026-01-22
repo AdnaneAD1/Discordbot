@@ -37,18 +37,20 @@ module.exports = {
             }
         }
 
-        const currentGradeObj = codmGrades.find(g => g.name === level) || { emoji: "🎖️" };
+        const currentGradeObj = codmGrades.find(g => g.name === level);
+        const currentEmoji = currentGradeObj?.emoji || '🎖️';
         const progress = nextGrade === "Max" ? 100 : (xp / nextXp) * 100;
-        const nextGradeObj = nextGrade === "Max" ? null : (codmGrades.find(g => g.name === nextGrade) || { emoji: "🎖️" });
+        const nextGradeObj = nextGrade === "Max" ? null : codmGrades.find(g => g.name === nextGrade);
+        const nextEmoji = nextGradeObj?.emoji || '🎖️';
 
         const rankEmbed = new EmbedBuilder()
             .setColor('#febc11')
             .setTitle(`Profil CODM de ${target.user.username}`)
             .setThumbnail(target.user.displayAvatarURL())
             .addFields(
-                { name: 'Grade', value: `${currentGradeObj.emoji} \`${level}\``, inline: true },
+                { name: 'Grade', value: `${currentEmoji} \`${level}\``, inline: true },
                 { name: 'XP Totale', value: `\`${xp}\` XP`, inline: true },
-                { name: 'Prochain Grade', value: nextGrade === "Max" ? "🚀 `Grade Maximum atteint !`" : `${nextGradeObj?.emoji || "🎖️"} \`${nextGrade}\` (${nextXp} XP)`, inline: false },
+                { name: 'Prochain Grade', value: nextGrade === "Max" ? "🚀 `Grade Maximum atteint !`" : `${nextEmoji} \`${nextGrade}\` (${nextXp} XP)`, inline: false },
             )
             .setFooter({ text: `Progression: ${progress.toFixed(1)}%` })
             .setTimestamp();
