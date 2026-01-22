@@ -144,7 +144,6 @@ const checkTikTok = async (client, account) => {
                         .setThumbnail(userAvatar)
                         .setImage(liveCover)
                         .addFields(
-                            { name: 'Spectateurs', value: `👥 \`${viewerCount}\``, inline: true },
                             { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
                         )
                         .setTimestamp();
@@ -183,7 +182,6 @@ const checkTikTok = async (client, account) => {
                         .setThumbnail(userAvatar)
                         .setImage(liveCover)
                         .addFields(
-                            { name: 'Spectateurs', value: `👥 \`${viewerCount}\``, inline: true },
                             { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
                         )
                         .setTimestamp();
