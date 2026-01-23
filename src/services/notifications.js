@@ -105,6 +105,7 @@ const checkTikTok = async (client, account) => {
 
         // Capture & Persist secUid if missing
         if (user?.secUid && account.secUid !== user.secUid) {
+            console.log(`[TikTok] SecUid captured for ${username}: ${user.secUid}`);
             await db.collection('socials').doc(account.id).update({ secUid: user.secUid });
             account.secUid = user.secUid; // Update local reference for immediate use
         }
@@ -244,11 +245,16 @@ const checkTikTok = async (client, account) => {
                     videoDesc = latest.desc;
                     videoThumb = latest.video?.cover?.url_list?.[0] || latest.video?.cover;
                     finalVideoUrl = `https://www.tiktok.com/@${username}/video/${videoId}`;
+                    console.log(`[TikTok API] OK for ${username}: ${itemList.length} items found. Latest: ${videoId}`);
+                } else {
+                    console.log(`[TikTok API] OK for ${username}: 0 items found (or private).`);
                 }
             } catch (apiError) {
                 console.warn(`[TikTok API] Failed to fetch posts for ${username}: ${apiError.message}`);
                 // Do NOT fallback to HTML regex to avoid "Phantom" posts. API is the source of truth.
             }
+        } else {
+            console.log(`[TikTok API] Skipped for ${username}: No secUid yet.`);
         }
 
         // --- NOTIFICATION & STORAGE ---
