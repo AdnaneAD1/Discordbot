@@ -103,6 +103,12 @@ const checkTikTok = async (client, account) => {
         const user = userInfo?.user;
         const liveRoom = userInfo?.liveRoom;
 
+        // Capture & Persist secUid if missing
+        if (user?.secUid && account.secUid !== user.secUid) {
+            await db.collection('socials').doc(account.id).update({ secUid: user.secUid });
+            account.secUid = user.secUid; // Update local reference for immediate use
+        }
+
         if (user?.status === 2 || html.includes('"status":2')) {
             isLive = true;
         }
@@ -211,56 +217,60 @@ const checkTikTok = async (client, account) => {
         }
 
 
-        // --- 2. NEW POST DETECTION ---
+        // --- 2. NEW POST DETECTION (API MODE) ---
+        // Constraint: Use internal endpoint, do not parse HTML for posts, strict videoId comparison.
+
         let videoId = null;
         let videoDesc = "";
         let videoThumb = "";
+        let finalVideoUrl = "";
 
-        // Extraction via JSON ItemList (SIGI_STATE)
-        if (sigiState?.ItemList?.['user-post']?.list) {
-            const list = sigiState.ItemList['user-post'].list;
-            if (list.length > 0) {
-                videoId = list[0];
-                const item = sigiState.ItemModule?.[videoId];
-                if (item) {
-                    videoDesc = item.desc;
-                    videoThumb = item.video?.cover;
+        if (account.secUid) {
+            try {
+                // Fetch list using internal API
+                const apiResponse = await axios.get(`https://www.tiktok.com/api/post/item_list/?aid=1988&secUid=${account.secUid}&count=30`, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.tiktok.com/',
+                        'Cookie': 'tt_webid_v2=1234567890;' // Fake generic cookie might help avoiding immediate rejected requests
+                    },
+                    timeout: 8000
+                });
+
+                const itemList = apiResponse.data?.itemList;
+                if (itemList && Array.isArray(itemList) && itemList.length > 0) {
+                    const latest = itemList[0];
+                    videoId = latest.id;
+                    videoDesc = latest.desc;
+                    videoThumb = latest.video?.cover?.url_list?.[0] || latest.video?.cover;
+                    finalVideoUrl = `https://www.tiktok.com/@${username}/video/${videoId}`;
                 }
+            } catch (apiError) {
+                console.warn(`[TikTok API] Failed to fetch posts for ${username}: ${apiError.message}`);
+                // Do NOT fallback to HTML regex to avoid "Phantom" posts. API is the source of truth.
             }
         }
 
-        // Extraction via Universal Data (webapp.user-detail)
-        if (!videoId && universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.itemModule) {
-            const itemModule = universalData.__DEFAULT_SCOPE__["webapp.user-detail"].itemModule;
-            const items = Object.values(itemModule);
-            if (items.length > 0) {
-                // Sort by createTime descending to get the latest
-                const latest = items.sort((a, b) => b.createTime - a.createTime)[0];
-                videoId = latest.id;
-                videoDesc = latest.desc;
-                videoThumb = latest.video?.cover;
-            }
-        }
-
-        // Regex fallback for video ID
-        if (!videoId) {
-            const videoMatch = html.match(/"itemStruct":\{"id":"(\d{19})"/);
-            if (videoMatch) videoId = videoMatch[1];
-        }
-
+        // --- NOTIFICATION & STORAGE ---
+        // Only proceed if we have a valid videoId and it is DIFFERENT from the last one.
         if (videoId && videoId !== account.lastPostId) {
+            // First time initialization
             if (!account.lastPostId) {
-                // Initialize
                 await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
-            } else {
+            }
+            // New Video Detected
+            else {
                 const channel = client.channels.cache.get(account.channelId);
                 if (channel) {
+                    // Use extracted nickname or username if nickname unavailable
+                    const displayIdentity = nickname || username;
+
                     const embed = new EmbedBuilder()
                         .setColor('#ff0050')
-                        .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
-                        .setDescription(videoDesc || "Nouvelle vidéo disponible sur TikTok !")
-                        .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
-                        .setImage(videoThumb || liveCover)
+                        .setTitle(`🎬 Va voir ${displayIdentity}, il a posté une nouvelle vidéo !`)
+                        .setDescription(videoDesc.length > 100 ? videoDesc.substring(0, 97) + '...' : (videoDesc || "Nouvelle vidéo disponible sur TikTok !"))
+                        .setURL(finalVideoUrl)
+                        .setImage(videoThumb || liveCover) // Fallback to profile/live cover if thumb missing
                         .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
                         .setTimestamp();
 
@@ -268,7 +278,7 @@ const checkTikTok = async (client, account) => {
                         new ButtonBuilder()
                             .setLabel('▶️ Voir la vidéo')
                             .setStyle(ButtonStyle.Link)
-                            .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
+                            .setURL(finalVideoUrl)
                     );
 
                     await channel.send({
@@ -276,7 +286,9 @@ const checkTikTok = async (client, account) => {
                         components: [row]
                     });
 
+                    // Update State Immediately
                     await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
+                    console.log(`[TikTok] Notification sent for ${displayIdentity} - Video: ${videoId}`);
                 }
             }
         }
