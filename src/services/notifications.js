@@ -216,7 +216,7 @@ const checkTikTok = async (client, account) => {
         let videoDesc = "";
         let videoThumb = "";
 
-        // Extraction via JSON ItemList
+        // Extraction via JSON ItemList (SIGI_STATE)
         if (sigiState?.ItemList?.['user-post']?.list) {
             const list = sigiState.ItemList['user-post'].list;
             if (list.length > 0) {
@@ -226,6 +226,19 @@ const checkTikTok = async (client, account) => {
                     videoDesc = item.desc;
                     videoThumb = item.video?.cover;
                 }
+            }
+        }
+
+        // Extraction via Universal Data (webapp.user-detail)
+        if (!videoId && universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.itemModule) {
+            const itemModule = universalData.__DEFAULT_SCOPE__["webapp.user-detail"].itemModule;
+            const items = Object.values(itemModule);
+            if (items.length > 0) {
+                // Sort by createTime descending to get the latest
+                const latest = items.sort((a, b) => b.createTime - a.createTime)[0];
+                videoId = latest.id;
+                videoDesc = latest.desc;
+                videoThumb = latest.video?.cover;
             }
         }
 
@@ -244,7 +257,7 @@ const checkTikTok = async (client, account) => {
                 if (channel) {
                     const embed = new EmbedBuilder()
                         .setColor('#ff0050')
-                        .setTitle(`🎬 Va voir ${username}, il a posté une nouvelle vidéo !`)
+                        .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
                         .setDescription(videoDesc || "Nouvelle vidéo disponible sur TikTok !")
                         .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
                         .setImage(videoThumb || liveCover)

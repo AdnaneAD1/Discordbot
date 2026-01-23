@@ -135,7 +135,7 @@ module.exports = {
                             }
                         }
 
-                        const totalDuration = (currentTrack ? (currentTrack.length || 0) : 0) + (queue.duration || 0);
+                        const totalDuration = (currentTrack ? (currentTrack.length || 0) : 0) + queue.reduce((acc, track) => acc + (track.length || 0), 0);
                         qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(totalDuration)}\``;
 
                         qEmbed.setDescription(qDescription);
