@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 const formatTime = (ms) => {
+    if (isNaN(ms) || ms <= 0) return '00:00';
     const seconds = Math.floor((ms / 1000) % 60);
     const minutes = Math.floor((ms / (1000 * 60)) % 60);
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -49,7 +50,8 @@ module.exports = {
             }
         }
 
-        description += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(player.queue.duration)}\``;
+        const totalDuration = (currentTrack ? (currentTrack.length || 0) : 0) + (queue.duration || 0);
+        description += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(totalDuration)}\``;
 
         embed.setDescription(description);
 

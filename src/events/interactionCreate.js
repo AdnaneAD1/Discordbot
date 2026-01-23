@@ -1,6 +1,7 @@
 const { Events, ChannelType, EmbedBuilder } = require('discord.js');
 
 const formatTime = (ms) => {
+    if (isNaN(ms) || ms <= 0) return '00:00';
     const seconds = Math.floor((ms / 1000) % 60);
     const minutes = Math.floor((ms / (1000 * 60)) % 60);
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -134,11 +135,12 @@ module.exports = {
                             }
                         }
 
-                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(player.queue.duration)}\``;
+                        const totalDuration = (currentTrack ? (currentTrack.length || 0) : 0) + (queue.duration || 0);
+                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(totalDuration)}\``;
 
                         qEmbed.setDescription(qDescription);
 
-                        await interaction.reply({ embeds: [qEmbed], flags: [64] });
+                        await interaction.reply({ embeds: [qEmbed] });
                         break;
                 }
             }
