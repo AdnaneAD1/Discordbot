@@ -140,20 +140,16 @@ async function generateImage(prompt, userId) {
             throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
         }
 
-        const API_URL = 'https://router.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+        const API_URL = 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell';
 
         const response = await axios.post(API_URL, {
-            inputs: prompt,
-            options: {
-                wait_for_model: true
-            }
+            inputs: prompt
         }, {
             headers: {
-                'Authorization': `Bearer ${HF_API_KEY}`,
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${HF_API_KEY}`
             },
             responseType: 'arraybuffer',
-            timeout: 120000 // 2 minutes timeout (les modèles peuvent prendre du temps à charger)
+            timeout: 120000 // 2 minutes timeout
         });
 
         // Sauvegarder l'image temporairement
