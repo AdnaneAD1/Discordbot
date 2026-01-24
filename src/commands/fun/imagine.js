@@ -140,23 +140,21 @@ async function generateImage(prompt, userId) {
             throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
         }
 
-        const API_URL = 'https://router.huggingface.co/nscale/v1/images/generations';
+        const API_URL = 'https://router.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
 
         const response = await axios.post(API_URL, {
-            prompt: prompt,
-            model: 'stabilityai/stable-diffusion-xl-base-1.0',
-            response_format: 'b64_json'
+            inputs: prompt,
+            options: {
+                wait_for_model: true
+            }
         }, {
             headers: {
                 'Authorization': `Bearer ${HF_API_KEY}`,
                 'Content-Type': 'application/json'
             },
-            timeout: 120000
+            responseType: 'arraybuffer',
+            timeout: 120000 // 2 minutes timeout (les modèles peuvent prendre du temps à charger)
         });
-
-        // L'API retourne maintenant un JSON avec l'image en base64
-        const imageB64 = response.data.data[0].b64_json;
-        const imageBuffer = Buffer.from(imageB64, 'base64');
 
         // Sauvegarder l'image temporairement
         const tempDir = path.join(__dirname, '..', '..', 'temp');
@@ -165,7 +163,7 @@ async function generateImage(prompt, userId) {
         const filename = `generated_${userId}_${Date.now()}.png`;
         const filepath = path.join(tempDir, filename);
 
-        await fs.writeFile(filepath, imageBuffer);
+        await fs.writeFile(filepath, response.data);
 
         return filepath;
     } catch (error) {
