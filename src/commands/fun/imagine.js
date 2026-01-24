@@ -125,36 +125,48 @@ module.exports = {
     }
 };
 
-// Fonction de génération d'image via Hugging Face API
+// Fonction de génération d'image via Hugging Face API (nouvelle version)
 async function generateImage(prompt, userId) {
-    const axios = require('axios');
     const fs = require('fs').promises;
     const path = require('path');
 
     try {
-        // Utilisation de l'API Hugging Face (gratuite avec limite généreuse)
-        // Modèle: Stable Diffusion XL
+        // Utilisation de la nouvelle API Hugging Face
         const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
         if (!HF_API_KEY) {
             throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
         }
 
-        const API_URL = 'https://router.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+        const API_URL = 'https://router.huggingface.co/nscale/v1/images/generations';
 
-        const response = await axios.post(API_URL, {
-            inputs: prompt,
-            options: {
-                wait_for_model: true
-            }
-        }, {
+        const response = await fetch(API_URL, {
             headers: {
                 'Authorization': `Bearer ${HF_API_KEY}`,
                 'Content-Type': 'application/json'
             },
-            responseType: 'arraybuffer',
-            timeout: 120000 // 2 minutes timeout (les modèles peuvent prendre du temps à charger)
+            method: 'POST',
+            body: JSON.stringify({
+                prompt: prompt,
+                model: 'stabilityai/stable-diffusion-xl-base-1.0',
+                response_format: 'b64_json'
+            })
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        // Décoder l'image base64
+        const imageData = result.data?.[0]?.b64_json;
+        if (!imageData) {
+            throw new Error('Aucune image générée dans la réponse');
+        }
+
+        const imageBuffer = Buffer.from(imageData, 'base64');
 
         // Sauvegarder l'image temporairement
         const tempDir = path.join(__dirname, '..', '..', 'temp');
@@ -163,34 +175,23 @@ async function generateImage(prompt, userId) {
         const filename = `generated_${userId}_${Date.now()}.png`;
         const filepath = path.join(tempDir, filename);
 
-        await fs.writeFile(filepath, response.data);
+        await fs.writeFile(filepath, imageBuffer);
 
         return filepath;
     } catch (error) {
-        // Décoder le message d'erreur si c'est un buffer
+        // Décoder le message d'erreur
         let errorMessage = error.message;
-        if (error.response?.data) {
-            try {
-                const errorData = Buffer.isBuffer(error.response.data)
-                    ? JSON.parse(error.response.data.toString())
-                    : error.response.data;
-                errorMessage = errorData.error || errorData.message || errorMessage;
-                console.error('Erreur API Hugging Face:', errorData);
-            } catch (parseError) {
-                console.error('Erreur génération image (raw):', error.response?.data);
-            }
-        } else {
-            console.error('Erreur génération image:', errorMessage);
+
+        console.error('Erreur génération image:', errorMessage);
+
+        // Si c'est une erreur d'authentification
+        if (errorMessage.includes('401') || errorMessage.includes('Invalid token')) {
+            throw new Error('Clé API Hugging Face invalide. Vérifie ta clé dans le .env');
         }
 
         // Si le modèle est en train de charger
-        if (error.response?.status === 503) {
+        if (errorMessage.includes('503') || errorMessage.includes('loading')) {
             throw new Error('Le modèle est en cours de chargement. Réessaye dans 20 secondes.');
-        }
-
-        // Si c'est une erreur d'authentification
-        if (error.response?.status === 401 || errorMessage.includes('Invalid token')) {
-            throw new Error('Clé API Hugging Face invalide. Vérifie ta clé dans le .env');
         }
 
         // Si la clé API est manquante
