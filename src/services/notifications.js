@@ -217,6 +217,7 @@ const checkTikTok = async (client, account) => {
 
         // --- 2. NEW POST DETECTION ---
         try {
+            console.log(`[TikTok-Post] Checking posts for ${username}...`);
             let videoId = null;
             let videoDesc = "";
             let videoThumb = "";
@@ -226,6 +227,7 @@ const checkTikTok = async (client, account) => {
                 const list = sigiState.ItemList['user-post'].list;
                 if (list.length > 0) {
                     videoId = list[0];
+                    console.log(`[TikTok-Post] Found videoId ${videoId} in SIGI_STATE`);
                     const item = sigiState.ItemModule?.[videoId];
                     if (item) {
                         videoDesc = item.desc;
@@ -239,9 +241,9 @@ const checkTikTok = async (client, account) => {
                 const itemModule = universalData.__DEFAULT_SCOPE__["webapp.user-detail"].itemModule;
                 const items = Object.values(itemModule);
                 if (items.length > 0) {
-                    // Sort by createTime descending to get the latest
                     const latest = items.sort((a, b) => b.createTime - a.createTime)[0];
                     videoId = latest.id;
+                    console.log(`[TikTok-Post] Found videoId ${videoId} in UniversalData`);
                     videoDesc = latest.desc;
                     videoThumb = latest.video?.cover;
                 }
@@ -250,14 +252,22 @@ const checkTikTok = async (client, account) => {
             // Regex fallback for video ID
             if (!videoId) {
                 const videoMatch = html.match(/"itemStruct":\{"id":"(\d{19})"/);
-                if (videoMatch) videoId = videoMatch[1];
+                if (videoMatch) {
+                    videoId = videoMatch[1];
+                    console.log(`[TikTok-Post] Found videoId ${videoId} via Regex Fallback`);
+                }
+            }
+
+            if (!videoId) {
+                console.log(`[TikTok-Post] No videoId found for ${username}`);
             }
 
             if (videoId && videoId !== account.lastPostId) {
                 if (!account.lastPostId) {
-                    // Initialize
+                    console.log(`[TikTok-Post] Initializing lastPostId for ${username}: ${videoId}`);
                     await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
                 } else {
+                    console.log(`[TikTok-Post] NEW POST DETECTED for ${username}: ${videoId}`);
                     const channel = client.channels.cache.get(account.channelId);
                     if (channel) {
                         const embed = new EmbedBuilder()
@@ -282,8 +292,11 @@ const checkTikTok = async (client, account) => {
                         });
 
                         await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
+                        console.log(`[TikTok-Post] Notification sent and DB updated for ${username}`);
                     }
                 }
+            } else if (videoId === account.lastPostId) {
+                console.log(`[TikTok-Post] No new post for ${username} (still ${videoId})`);
             }
         } catch (error) {
             console.error(`Error in TikTok Post logic for ${username}:`, error);
