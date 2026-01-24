@@ -215,91 +215,93 @@ const checkTikTok = async (client, account) => {
         }
 
 
-        // --- 2. NEW POST DETECTION ---
+        // --- 2. NEW POST DETECTION (Embed Method) ---
         try {
-            console.log(`[TikTok-Post] Checking posts for ${username}...`);
-            let videoId = null;
-            let videoDesc = "";
-            let videoThumb = "";
+            console.log(`[TikTok-Post] Checking posts (Embed Method) for ${username}...`);
 
-            // Extraction via JSON ItemList (SIGI_STATE)
-            if (sigiState?.ItemList?.['user-post']?.list) {
-                const list = sigiState.ItemList['user-post'].list;
-                if (list.length > 0) {
-                    videoId = list[0];
-                    console.log(`[TikTok-Post] Found videoId ${videoId} in SIGI_STATE`);
-                    const item = sigiState.ItemModule?.[videoId];
-                    if (item) {
-                        videoDesc = item.desc;
-                        videoThumb = item.video?.cover;
+            // Fetch Embed Page (Lighter, more stable, often less blocked)
+            const embedUrl = `https://www.tiktok.com/embed/@${username}`;
+            const embedResponse = await axios.get(embedUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml',
+                    'Accept-Language': 'fr-FR',
+                },
+                timeout: 5000
+            });
+            const embedHtml = embedResponse.data;
+
+            // Extract all Video IDs (Regex is robust here as structure is simple)
+            // Pattern: /video/7547573750439349526
+            const videoIdMatches = [...embedHtml.matchAll(/\/video\/(\d{19})/g)];
+            const foundIds = videoIdMatches.map(match => match[1]);
+
+            let latestVideoId = null;
+
+            if (foundIds.length > 0) {
+                // Deduplicate
+                const uniqueIds = [...new Set(foundIds)];
+
+                // Sort Descending (Newest ID = Highest Number)
+                // We use BigInt for accurate comparison of 19-digit numbers
+                uniqueIds.sort((a, b) => {
+                    if (BigInt(a) < BigInt(b)) return 1;
+                    if (BigInt(a) > BigInt(b)) return -1;
+                    return 0;
+                });
+
+                latestVideoId = uniqueIds[0];
+                console.log(`[TikTok-Post] Latest ID found via Embed: ${latestVideoId}`);
+            }
+
+            if (!latestVideoId) {
+                console.log(`[TikTok-Post] No video IDs found in Embed for ${username}`);
+            } else {
+                if (latestVideoId !== account.lastPostId) {
+                    if (!account.lastPostId) {
+                        console.log(`[TikTok-Post] Initializing lastPostId for ${username}: ${latestVideoId}`);
+                        await db.collection('socials').doc(account.id).update({ lastPostId: latestVideoId });
+                    } else {
+                        // Double check: Is the new ID actually bigger than the old one?
+                        // This prevents notifying for an old pinned video if the DB had a newer one
+                        if (BigInt(latestVideoId) > BigInt(account.lastPostId)) {
+                            console.log(`[TikTok-Post] NEW REAL POST DETECTED for ${username}: ${latestVideoId}`);
+
+                            const channel = client.channels.cache.get(account.channelId);
+                            if (channel) {
+                                const embed = new EmbedBuilder()
+                                    .setColor('#ff0050')
+                                    .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
+                                    .setDescription("Nouvelle vidéo disponible sur TikTok !")
+                                    .setURL(`https://www.tiktok.com/@${username}/video/${latestVideoId}`)
+                                    .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
+                                    .setTimestamp();
+
+                                const row = new ActionRowBuilder().addComponents(
+                                    new ButtonBuilder()
+                                        .setLabel('▶️ Voir la vidéo')
+                                        .setStyle(ButtonStyle.Link)
+                                        .setURL(`https://www.tiktok.com/@${username}/video/${latestVideoId}`)
+                                );
+
+                                await channel.send({
+                                    embeds: [embed],
+                                    components: [row]
+                                });
+
+                                await db.collection('socials').doc(account.id).update({ lastPostId: latestVideoId });
+                                console.log(`[TikTok-Post] Notification sent and DB updated for ${username}`);
+                            }
+                        } else {
+                            console.log(`[TikTok-Post] Detected ID ${latestVideoId} is not newer than stored ${account.lastPostId}. Ignoring.`);
+                        }
                     }
-                }
-            }
-
-            // Extraction via Universal Data (webapp.user-detail)
-            if (!videoId && universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.itemModule) {
-                const itemModule = universalData.__DEFAULT_SCOPE__["webapp.user-detail"].itemModule;
-                const items = Object.values(itemModule);
-                if (items.length > 0) {
-                    const latest = items.sort((a, b) => b.createTime - a.createTime)[0];
-                    videoId = latest.id;
-                    console.log(`[TikTok-Post] Found videoId ${videoId} in UniversalData`);
-                    videoDesc = latest.desc;
-                    videoThumb = latest.video?.cover;
-                }
-            }
-
-            // Regex fallback for video ID
-            if (!videoId) {
-                const videoMatch = html.match(/"itemStruct":\{"id":"(\d{19})"/);
-                if (videoMatch) {
-                    videoId = videoMatch[1];
-                    console.log(`[TikTok-Post] Found videoId ${videoId} via Regex Fallback`);
-                }
-            }
-
-            if (!videoId) {
-                console.log(`[TikTok-Post] No videoId found for ${username}`);
-            }
-
-            if (videoId && videoId !== account.lastPostId) {
-                if (!account.lastPostId) {
-                    console.log(`[TikTok-Post] Initializing lastPostId for ${username}: ${videoId}`);
-                    await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
                 } else {
-                    console.log(`[TikTok-Post] NEW POST DETECTED for ${username}: ${videoId}`);
-                    const channel = client.channels.cache.get(account.channelId);
-                    if (channel) {
-                        const embed = new EmbedBuilder()
-                            .setColor('#ff0050')
-                            .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
-                            .setDescription(videoDesc || "Nouvelle vidéo disponible sur TikTok !")
-                            .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
-                            .setImage(videoThumb || liveCover)
-                            .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
-                            .setTimestamp();
-
-                        const row = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder()
-                                .setLabel('▶️ Voir la vidéo')
-                                .setStyle(ButtonStyle.Link)
-                                .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
-                        );
-
-                        await channel.send({
-                            embeds: [embed],
-                            components: [row]
-                        });
-
-                        await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
-                        console.log(`[TikTok-Post] Notification sent and DB updated for ${username}`);
-                    }
+                    console.log(`[TikTok-Post] No new post for ${username} (still ${latestVideoId})`);
                 }
-            } else if (videoId === account.lastPostId) {
-                console.log(`[TikTok-Post] No new post for ${username} (still ${videoId})`);
             }
         } catch (error) {
-            console.error(`Error in TikTok Post logic for ${username}:`, error);
+            console.error(`Error in TikTok Post logic (Embed) for ${username}:`, error.message);
         }
 
     } catch (error) {
