@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { werewolfManager } = require('../../index'); // On assume une exportation globale ou un accès via client
+// werewolfManager is accessed via interaction.client.werewolf
 
 module.exports = {
     data: new SlashCommandBuilder()
