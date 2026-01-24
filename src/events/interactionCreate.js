@@ -215,6 +215,46 @@ module.exports = {
                         components: [row],
                         ephemeral: true
                     });
+                } else if (customId.startsWith('imagine_regenerate_')) {
+                    const userId = customId.split('_')[2];
+                    if (interaction.user.id !== userId) {
+                        return interaction.reply({ content: '❌ Seul l\'auteur peut régénérer cette image.', ephemeral: true });
+                    }
+
+                    const cache = interaction.client.imageCache?.get(userId);
+                    if (!cache) {
+                        return interaction.reply({ content: '❌ Données de régénération expirées.', ephemeral: true });
+                    }
+
+                    // Vérifier le cooldown
+                    const imageCooldown = require('../systems/imageCooldown');
+                    const cooldownCheck = await imageCooldown.checkCooldown(interaction.guild.id, userId);
+                    if (!cooldownCheck.allowed) {
+                        return interaction.reply({
+                            content: `⏱️ Tu as atteint la limite. Réessaye dans **${cooldownCheck.resetIn} minute(s)**.`,
+                            ephemeral: true
+                        });
+                    }
+
+                    await interaction.deferUpdate();
+                    // Relancer la génération avec les mêmes paramètres
+                    const command = interaction.client.commands.get('imagine');
+                    if (command) {
+                        // Simuler l'exécution avec les paramètres cachés
+                        interaction.options = {
+                            getString: (name) => name === 'prompt' ? cache.prompt : cache.style,
+                            getBoolean: () => false
+                        };
+                        await command.execute(interaction);
+                    }
+                } else if (customId.startsWith('imagine_delete_')) {
+                    const userId = customId.split('_')[2];
+                    if (interaction.user.id !== userId) {
+                        return interaction.reply({ content: '❌ Seul l\'auteur peut supprimer cette image.', ephemeral: true });
+                    }
+
+                    await interaction.message.delete();
+                    await interaction.reply({ content: '🗑️ Image supprimée.', ephemeral: true });
                 } else if (customId === 'lg_witch_save') {
                     game.nightActions.witchAction = { type: 'SAVE', targetId: game.nightActions.wolfTargetId };
                     await interaction.reply({ content: "🧪 Potion de vie utilisée !", ephemeral: true });
