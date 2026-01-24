@@ -103,13 +103,6 @@ const checkTikTok = async (client, account) => {
         const user = userInfo?.user;
         const liveRoom = userInfo?.liveRoom;
 
-        // Capture & Persist secUid if missing
-        if (user?.secUid && account.secUid !== user.secUid) {
-            console.log(`[TikTok] SecUid captured for ${username}: ${user.secUid}`);
-            await db.collection('socials').doc(account.id).update({ secUid: user.secUid });
-            account.secUid = user.secUid; // Update local reference for immediate use
-        }
-
         if (user?.status === 2 || html.includes('"status":2')) {
             isLive = true;
         }
@@ -133,170 +126,167 @@ const checkTikTok = async (client, account) => {
         }
 
         // --- LIVE NOTIFICATION LOGIC ---
-        const ONE_HOUR = 60 * 60 * 1000;
+        try {
+            const ONE_HOUR = 60 * 60 * 1000;
 
-        // Went LIVE (First announcement)
-        if (isLive && !account.isLive) {
-            if (account.isLive === undefined) {
-                // Initialize for first time without spamming
-                await db.collection('socials').doc(account.id).update({ isLive: true, lastLiveMessageTime: now });
-            } else {
-                const channel = client.channels.cache.get(account.channelId);
-                if (channel) {
-                    const embed = new EmbedBuilder()
-                        .setColor('#ff0050')
-                        .setTitle(`🔴 ${nickname} est en LIVE sur TikTok !`)
-                        .setDescription(liveTitle)
-                        .setURL(`https://www.tiktok.com/@${username}/live`)
-                        .setThumbnail(userAvatar)
-                        .setImage(liveCover)
-                        .addFields(
-                            { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
-                        )
-                        .setTimestamp();
-
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setLabel('▶️ Regarder le live')
-                            .setStyle(ButtonStyle.Link)
+            // Went LIVE (First announcement)
+            if (isLive && !account.isLive) {
+                if (account.isLive === undefined) {
+                    // Initialize for first time without spamming
+                    await db.collection('socials').doc(account.id).update({ isLive: true, lastLiveMessageTime: now });
+                } else {
+                    const channel = client.channels.cache.get(account.channelId);
+                    if (channel) {
+                        const embed = new EmbedBuilder()
+                            .setColor('#ff0050')
+                            .setTitle(`🔴 ${nickname} est en LIVE sur TikTok !`)
+                            .setDescription(liveTitle)
                             .setURL(`https://www.tiktok.com/@${username}/live`)
-                    );
+                            .setThumbnail(userAvatar)
+                            .setImage(liveCover)
+                            .addFields(
+                                { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
+                            )
+                            .setTimestamp();
 
-                    await channel.send({
-                        content: `@everyone 🚨 **ALERTE LIVE** : **${nickname}** lance son stream !`,
-                        embeds: [embed],
-                        components: [row]
-                    });
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setLabel('▶️ Regarder le live')
+                                .setStyle(ButtonStyle.Link)
+                                .setURL(`https://www.tiktok.com/@${username}/live`)
+                        );
 
-                    await db.collection('socials').doc(account.id).update({
-                        isLive: true,
-                        lastLiveMessageTime: now
-                    });
+                        await channel.send({
+                            content: `@everyone 🚨 **ALERTE LIVE** : **${nickname}** lance son stream !`,
+                            embeds: [embed],
+                            components: [row]
+                        });
+
+                        await db.collection('socials').doc(account.id).update({
+                            isLive: true,
+                            lastLiveMessageTime: now
+                        });
+                    }
                 }
             }
-        }
-        // REMINDER (Still Live)
-        else if (isLive && account.isLive) {
-            const lastTime = account.lastLiveMessageTime || 0;
-            if (now - lastTime > ONE_HOUR) {
-                const channel = client.channels.cache.get(account.channelId);
-                if (channel) {
-                    const embed = new EmbedBuilder()
-                        .setColor('#ff0050')
-                        .setTitle(`⏳ Rappel : ${nickname} est toujours en LIVE !`)
-                        .setDescription(`Rejoignez le stream si ce n'est pas déjà fait !\n\n**${liveTitle}**`)
-                        .setURL(`https://www.tiktok.com/@${username}/live`)
-                        .setThumbnail(userAvatar)
-                        .setImage(liveCover)
-                        .addFields(
-                            { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
-                        )
-                        .setTimestamp();
-
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setLabel('▶️ Rejoindre maintenant')
-                            .setStyle(ButtonStyle.Link)
+            // REMINDER (Still Live)
+            else if (isLive && account.isLive) {
+                const lastTime = account.lastLiveMessageTime || 0;
+                if (now - lastTime > ONE_HOUR) {
+                    const channel = client.channels.cache.get(account.channelId);
+                    if (channel) {
+                        const embed = new EmbedBuilder()
+                            .setColor('#ff0050')
+                            .setTitle(`⏳ Rappel : ${nickname} est toujours en LIVE !`)
+                            .setDescription(`Rejoignez le stream si ce n'est pas déjà fait !\n\n**${liveTitle}**`)
                             .setURL(`https://www.tiktok.com/@${username}/live`)
-                    );
+                            .setThumbnail(userAvatar)
+                            .setImage(liveCover)
+                            .addFields(
+                                { name: 'Durée', value: `⏳ \`${durationText}\``, inline: true }
+                            )
+                            .setTimestamp();
 
-                    await channel.send({
-                        content: `📢 **RAPPEL** : @everyone Le live de **${nickname}** est toujours en cours !`,
-                        embeds: [embed],
-                        components: [row]
-                    });
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setLabel('▶️ Rejoindre maintenant')
+                                .setStyle(ButtonStyle.Link)
+                                .setURL(`https://www.tiktok.com/@${username}/live`)
+                        );
 
-                    await db.collection('socials').doc(account.id).update({
-                        lastLiveMessageTime: now
-                    });
+                        await channel.send({
+                            content: `📢 **RAPPEL** : @everyone Le live de **${nickname}** est toujours en cours !`,
+                            embeds: [embed],
+                            components: [row]
+                        });
+
+                        await db.collection('socials').doc(account.id).update({
+                            lastLiveMessageTime: now
+                        });
+                    }
                 }
             }
+            // Went OFFLINE
+            else if (!isLive && account.isLive) {
+                await db.collection('socials').doc(account.id).update({ isLive: false });
+            }
+        } catch (error) {
+            console.error(`Error in TikTok Live logic for ${username}:`, error);
         }
-        // Went OFFLINE
-        else if (!isLive && account.isLive) {
-            await db.collection('socials').doc(account.id).update({ isLive: false });
-        }
 
 
-        // --- 2. NEW POST DETECTION (API MODE) ---
-        // Constraint: Use internal endpoint, do not parse HTML for posts, strict videoId comparison.
+        // --- 2. NEW POST DETECTION ---
+        try {
+            let videoId = null;
+            let videoDesc = "";
+            let videoThumb = "";
 
-        let videoId = null;
-        let videoDesc = "";
-        let videoThumb = "";
-        let finalVideoUrl = "";
+            // Extraction via JSON ItemList (SIGI_STATE)
+            if (sigiState?.ItemList?.['user-post']?.list) {
+                const list = sigiState.ItemList['user-post'].list;
+                if (list.length > 0) {
+                    videoId = list[0];
+                    const item = sigiState.ItemModule?.[videoId];
+                    if (item) {
+                        videoDesc = item.desc;
+                        videoThumb = item.video?.cover;
+                    }
+                }
+            }
 
-        if (account.secUid) {
-            try {
-                // Fetch list using internal API
-                const apiResponse = await axios.get(`https://www.tiktok.com/api/post/item_list/?aid=1988&secUid=${account.secUid}&count=30`, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                        'Referer': 'https://www.tiktok.com/',
-                        'Cookie': 'tt_webid_v2=1234567890;' // Fake generic cookie might help avoiding immediate rejected requests
-                    },
-                    timeout: 8000
-                });
-
-                const itemList = apiResponse.data?.itemList;
-                if (itemList && Array.isArray(itemList) && itemList.length > 0) {
-                    const latest = itemList[0];
+            // Extraction via Universal Data (webapp.user-detail)
+            if (!videoId && universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.itemModule) {
+                const itemModule = universalData.__DEFAULT_SCOPE__["webapp.user-detail"].itemModule;
+                const items = Object.values(itemModule);
+                if (items.length > 0) {
+                    // Sort by createTime descending to get the latest
+                    const latest = items.sort((a, b) => b.createTime - a.createTime)[0];
                     videoId = latest.id;
                     videoDesc = latest.desc;
-                    videoThumb = latest.video?.cover?.url_list?.[0] || latest.video?.cover;
-                    finalVideoUrl = `https://www.tiktok.com/@${username}/video/${videoId}`;
-                    console.log(`[TikTok API] OK for ${username}: ${itemList.length} items found. Latest: ${videoId}`);
-                } else {
-                    console.log(`[TikTok API] OK for ${username}: 0 items found (or private).`);
+                    videoThumb = latest.video?.cover;
                 }
-            } catch (apiError) {
-                console.warn(`[TikTok API] Failed to fetch posts for ${username}: ${apiError.message}`);
-                // Do NOT fallback to HTML regex to avoid "Phantom" posts. API is the source of truth.
             }
-        } else {
-            console.log(`[TikTok API] Skipped for ${username}: No secUid yet.`);
-        }
 
-        // --- NOTIFICATION & STORAGE ---
-        // Only proceed if we have a valid videoId and it is DIFFERENT from the last one.
-        if (videoId && videoId !== account.lastPostId) {
-            // First time initialization
-            if (!account.lastPostId) {
-                await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
+            // Regex fallback for video ID
+            if (!videoId) {
+                const videoMatch = html.match(/"itemStruct":\{"id":"(\d{19})"/);
+                if (videoMatch) videoId = videoMatch[1];
             }
-            // New Video Detected
-            else {
-                const channel = client.channels.cache.get(account.channelId);
-                if (channel) {
-                    // Use extracted nickname or username if nickname unavailable
-                    const displayIdentity = nickname || username;
 
-                    const embed = new EmbedBuilder()
-                        .setColor('#ff0050')
-                        .setTitle(`🎬 Va voir ${displayIdentity}, il a posté une nouvelle vidéo !`)
-                        .setDescription(videoDesc.length > 100 ? videoDesc.substring(0, 97) + '...' : (videoDesc || "Nouvelle vidéo disponible sur TikTok !"))
-                        .setURL(finalVideoUrl)
-                        .setImage(videoThumb || liveCover) // Fallback to profile/live cover if thumb missing
-                        .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
-                        .setTimestamp();
-
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setLabel('▶️ Voir la vidéo')
-                            .setStyle(ButtonStyle.Link)
-                            .setURL(finalVideoUrl)
-                    );
-
-                    await channel.send({
-                        embeds: [embed],
-                        components: [row]
-                    });
-
-                    // Update State Immediately
+            if (videoId && videoId !== account.lastPostId) {
+                if (!account.lastPostId) {
+                    // Initialize
                     await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
-                    console.log(`[TikTok] Notification sent for ${displayIdentity} - Video: ${videoId}`);
+                } else {
+                    const channel = client.channels.cache.get(account.channelId);
+                    if (channel) {
+                        const embed = new EmbedBuilder()
+                            .setColor('#ff0050')
+                            .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
+                            .setDescription(videoDesc || "Nouvelle vidéo disponible sur TikTok !")
+                            .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
+                            .setImage(videoThumb || liveCover)
+                            .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
+                            .setTimestamp();
+
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setLabel('▶️ Voir la vidéo')
+                                .setStyle(ButtonStyle.Link)
+                                .setURL(`https://www.tiktok.com/@${username}/video/${videoId}`)
+                        );
+
+                        await channel.send({
+                            embeds: [embed],
+                            components: [row]
+                        });
+
+                        await db.collection('socials').doc(account.id).update({ lastPostId: videoId });
+                    }
                 }
             }
+        } catch (error) {
+            console.error(`Error in TikTok Post logic for ${username}:`, error);
         }
 
     } catch (error) {
