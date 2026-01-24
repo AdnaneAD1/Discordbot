@@ -61,7 +61,7 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: isPrivate });
+        await interaction.deferReply({ flags: isPrivate ? [64] : [] });
 
         try {
             // Construction du prompt complet avec le style
@@ -118,8 +118,8 @@ module.exports = {
         } catch (error) {
             console.error('Erreur lors de la génération:', error);
             await interaction.editReply({
-                content: '❌ Une erreur est survenue lors de la génération de l\'image. Réessaye plus tard.',
-                ephemeral: true
+                content: `❌ ${error.message || 'Une erreur est survenue lors de la génération de l\'image.'}`,
+                flags: [64]
             });
         }
     }
@@ -167,17 +167,37 @@ async function generateImage(prompt, userId) {
 
         return filepath;
     } catch (error) {
-        console.error('Erreur génération image:', error.response?.data || error.message);
+        // Décoder le message d'erreur si c'est un buffer
+        let errorMessage = error.message;
+        if (error.response?.data) {
+            try {
+                const errorData = Buffer.isBuffer(error.response.data)
+                    ? JSON.parse(error.response.data.toString())
+                    : error.response.data;
+                errorMessage = errorData.error || errorData.message || errorMessage;
+                console.error('Erreur API Hugging Face:', errorData);
+            } catch (parseError) {
+                console.error('Erreur génération image (raw):', error.response?.data);
+            }
+        } else {
+            console.error('Erreur génération image:', errorMessage);
+        }
 
-        // Si le modèle est en train de charger, informer l'utilisateur
+        // Si le modèle est en train de charger
         if (error.response?.status === 503) {
             throw new Error('Le modèle est en cours de chargement. Réessaye dans 20 secondes.');
         }
 
-        if (error.message.includes('Clé API')) {
+        // Si c'est une erreur d'authentification
+        if (error.response?.status === 401 || errorMessage.includes('Invalid token')) {
+            throw new Error('Clé API Hugging Face invalide. Vérifie ta clé dans le .env');
+        }
+
+        // Si la clé API est manquante
+        if (errorMessage.includes('Clé API')) {
             throw error;
         }
 
-        throw new Error('Impossible de générer l\'image. Vérifie ton prompt ou réessaye plus tard.');
+        throw new Error(`Impossible de générer l'image: ${errorMessage}`);
     }
 }
