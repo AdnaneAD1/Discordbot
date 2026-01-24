@@ -140,7 +140,7 @@ async function generateImage(prompt, userId) {
             throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
         }
 
-        const API_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+        const API_URL = 'https://router.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
 
         const response = await axios.post(API_URL, {
             inputs: prompt,
