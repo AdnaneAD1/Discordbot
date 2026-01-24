@@ -15,8 +15,11 @@ const client = new Client({
 
 const { initMusic } = require('./services/music');
 const { initNotifications } = require('./services/notifications');
+const WerewolfManager = require('./systems/werewolf/index');
+
 client.commands = new Collection();
 client.kazagumo = initMusic(client);
+client.werewolf = new WerewolfManager(client);
 initNotifications(client);
 
 // Load Commands

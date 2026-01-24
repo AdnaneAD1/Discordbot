@@ -15,13 +15,9 @@ module.exports = {
         .addChannelOption(option => option.setName('giveaway_channel').setDescription('Salon pour les annonces de giveaways'))
         .addChannelOption(option => option.setName('music_channel').setDescription('Salon vocal par défaut pour la musique'))
         .addChannelOption(option => option.setName('music_text_channel').setDescription('Salon textuel EXCLUSIF pour les commandes de musique'))
-        .addChannelOption(option => option.setName('rank_up_channel').setDescription('Salon pour annoncer les paliers d\'XP franchis'))
-        .addIntegerOption(option => option.setName('xp_veteran').setDescription('XP pour Vétéran'))
-        .addIntegerOption(option => option.setName('xp_elite').setDescription('XP pour Élite'))
-        .addIntegerOption(option => option.setName('xp_pro').setDescription('XP pour Pro'))
-        .addIntegerOption(option => option.setName('xp_maitre').setDescription('XP pour Maître'))
-        .addIntegerOption(option => option.setName('xp_grand_maitre').setDescription('XP pour Grand Maître'))
-        .addIntegerOption(option => option.setName('xp_legendaire').setDescription('XP pour Légendaire')),
+        .addChannelOption(option => option.setName('werewolf_channel').setDescription('Salon pour le jeu Loup-Garou'))
+        .addChannelOption(option => option.setName('rank_up_channel').setDescription('Salon pour les annonces de passage de grade'))
+        .addIntegerOption(option => option.setName('werewolf_timer').setDescription('Durée du compte à rebours (secondes)')),
     async execute(interaction) {
         const guildId = interaction.guild.id;
         const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
@@ -37,6 +33,12 @@ module.exports = {
             musicChannel: interaction.options.getChannel('music_channel'),
             musicTextChannel: interaction.options.getChannel('music_text_channel'),
             rankUpChannel: interaction.options.getChannel('rank_up_channel'),
+            werewolfChannel: interaction.options.getChannel('werewolf_channel'),
+            werewolfTimer: interaction.options.getInteger('werewolf_timer'),
+            musicChannel: interaction.options.getChannel('music_channel'),
+            musicTextChannel: interaction.options.getChannel('music_text_channel'),
+            rankUpChannel: interaction.options.getChannel('rank_up_channel'),
+            werewolfChannel: interaction.options.getChannel('werewolf_channel'),
             xpVeteran: interaction.options.getInteger('xp_veteran'),
             xpElite: interaction.options.getInteger('xp_elite'),
             xpPro: interaction.options.getInteger('xp_pro'),
@@ -55,6 +57,19 @@ module.exports = {
         if (options.giveawayChannel) {
             await guildConfigRef.doc('channels').set({ giveawayChannelId: options.giveawayChannel.id }, { merge: true });
             updates.push(`✅ Giveaways : <#${options.giveawayChannel.id}>`);
+        }
+
+        if (options.werewolfChannel) {
+            await guildConfigRef.doc('channels').set({ werewolfChannelId: options.werewolfChannel.id }, { merge: true });
+            updates.push(`✅ Loup-Garou : <#${options.werewolfChannel.id}>`);
+
+            const GameInfo = require('../../systems/werewolf/GameInfo');
+            await GameInfo.sendAll(options.werewolfChannel);
+        }
+
+        if (options.werewolfTimer) {
+            await guildConfigRef.doc('werewolf').set({ timer: options.werewolfTimer }, { merge: true });
+            updates.push(`✅ Timer Loup-Garou : **${options.werewolfTimer}s**`);
         }
 
         if (options.ticketCategory) {
