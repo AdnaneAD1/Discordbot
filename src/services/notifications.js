@@ -100,17 +100,26 @@ const checkTikTok = async (client, account) => {
 
         // Data sources
         const userInfo = sigiState?.LiveRoom?.liveRoomUserInfo || universalData?.__DEFAULT_SCOPE__?.["webapp.user-detail"]?.userInfo;
-        const user = userInfo?.user;
-        const liveRoom = userInfo?.liveRoom;
+        const liveDetail = universalData?.__DEFAULT_SCOPE__?.["webapp.live-detail"];
+        const user = userInfo?.user || liveDetail?.userInfo?.user;
+        const liveRoom = userInfo?.liveRoom || liveDetail?.liveRoom;
 
-        if (user?.status === 2 || html.includes('"status":2')) {
+        if (user?.status === 2 || html.includes('"status":2') || liveRoom?.status === 2) {
             isLive = true;
         }
 
         const nickname = user?.nickname || username;
-        const liveTitle = liveRoom?.title || getMeta("og:title") || `Live de ${nickname}`;
-        // Robust cover search: JSON first, then Meta
-        const liveCover = liveRoom?.cover?.url_list?.[0] || getMeta("og:image");
+        // Search for title in multiple places
+        const liveTitle = liveRoom?.title ||
+            getMeta("og:title")?.replace(/ \| TikTok$/, "") ||
+            sigiState?.SEO?.metaData?.title ||
+            `Live de ${nickname}`;
+
+        // Search for cover in multiple places
+        const liveCover = liveRoom?.cover?.url_list?.[0] ||
+            liveRoom?.owner?.avatarLarger ||
+            getMeta("og:image") ||
+            user?.avatarLarger;
         const userAvatar = user?.avatarLarger || 'https://sf-static.six-group.com/images/tiktok-logo.png';
         const viewerCount = liveRoom?.viewerCount || 0;
         const startTime = liveRoom?.startTime; // Unix timestamp in seconds
@@ -267,15 +276,35 @@ const checkTikTok = async (client, account) => {
                         if (BigInt(latestVideoId) > BigInt(account.lastPostId)) {
                             console.log(`[TikTok-Post] NEW REAL POST DETECTED for ${username}: ${latestVideoId}`);
 
+                            // Try to extract the video cover/thumbnail from the embed HTML
+                            let videoCover = null;
+                            const coverMatch = embedHtml.match(new RegExp(`/video/${latestVideoId}[^>]*>.*?<img[^>]*src="([^"]+)"`));
+                            if (coverMatch) {
+                                videoCover = coverMatch[1];
+                            } else {
+                                // Fallback: Look for any img tag near the video ID
+                                const imgMatches = [...embedHtml.matchAll(/<img[^>]*src="([^"]+)"/g)];
+                                if (imgMatches.length > 0) {
+                                    // Usually the first few images are video covers
+                                    videoCover = imgMatches[0][1];
+                                }
+                            }
+
                             const channel = client.channels.cache.get(account.channelId);
                             if (channel) {
                                 const embed = new EmbedBuilder()
                                     .setColor('#ff0050')
-                                    .setTitle(`🎬 Va voir ${nickname}, il a posté une nouvelle vidéo !`)
-                                    .setDescription("Nouvelle vidéo disponible sur TikTok !")
+                                    .setTitle(`🎬 ${nickname} a posté une nouvelle vidéo sur TikTok !`)
+                                    .setDescription("Nouvelle vidéo disponible !")
                                     .setURL(`https://www.tiktok.com/@${username}/video/${latestVideoId}`)
+                                    .setThumbnail(userAvatar)
                                     .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
                                     .setTimestamp();
+
+                                // Add video cover if found
+                                if (videoCover) {
+                                    embed.setImage(videoCover);
+                                }
 
                                 const row = new ActionRowBuilder().addComponents(
                                     new ButtonBuilder()
@@ -285,6 +314,7 @@ const checkTikTok = async (client, account) => {
                                 );
 
                                 await channel.send({
+                                    content: `📢 **NOUVELLE VIDÉO** : **${nickname}** vient de poster !`,
                                     embeds: [embed],
                                     components: [row]
                                 });
