@@ -276,18 +276,22 @@ const checkTikTok = async (client, account) => {
                         if (BigInt(latestVideoId) > BigInt(account.lastPostId)) {
                             console.log(`[TikTok-Post] NEW REAL POST DETECTED for ${username}: ${latestVideoId}`);
 
-                            // Try to extract the video cover/thumbnail from the embed HTML
+                            // Fetch metadata via TikTok oEmbed API (Official and reliable for covers/titles)
                             let videoCover = null;
-                            const coverMatch = embedHtml.match(new RegExp(`/video/${latestVideoId}[^>]*>.*?<img[^>]*src="([^"]+)"`));
-                            if (coverMatch) {
-                                videoCover = coverMatch[1];
-                            } else {
-                                // Fallback: Look for any img tag near the video ID
-                                const imgMatches = [...embedHtml.matchAll(/<img[^>]*src="([^"]+)"/g)];
-                                if (imgMatches.length > 0) {
-                                    // Usually the first few images are video covers
-                                    videoCover = imgMatches[0][1];
+                            let videoTitle = "Nouvelle vidéo disponible !";
+
+                            try {
+                                const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${latestVideoId}`;
+                                const oembedRes = await axios.get(oembedUrl, { timeout: 5000 });
+                                if (oembedRes.data) {
+                                    videoCover = oembedRes.data.thumbnail_url;
+                                    videoTitle = oembedRes.data.title || videoTitle;
                                 }
+                            } catch (e) {
+                                console.error(`[TikTok-Post] oEmbed failed for ${latestVideoId}:`, e.message);
+                                // Fallback: Try to extract the video cover/thumbnail from the embed HTML
+                                const coverMatch = embedHtml.match(new RegExp(`/video/${latestVideoId}[^>]*>.*?<img[^>]*src="([^"]+)"`));
+                                if (coverMatch) videoCover = coverMatch[1];
                             }
 
                             const channel = client.channels.cache.get(account.channelId);
@@ -295,7 +299,7 @@ const checkTikTok = async (client, account) => {
                                 const embed = new EmbedBuilder()
                                     .setColor('#ff0050')
                                     .setTitle(`🎬 ${nickname} a posté une nouvelle vidéo sur TikTok !`)
-                                    .setDescription("Nouvelle vidéo disponible !")
+                                    .setDescription(videoTitle)
                                     .setURL(`https://www.tiktok.com/@${username}/video/${latestVideoId}`)
                                     .setThumbnail(userAvatar)
                                     .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
@@ -314,7 +318,7 @@ const checkTikTok = async (client, account) => {
                                 );
 
                                 await channel.send({
-                                    content: `📢 **NOUVELLE VIDÉO** : **${nickname}** vient de poster !`,
+                                    content: `📢 **NOUVELLE VIDÉO** : @everyone **${nickname}** vient de poster !`,
                                     embeds: [embed],
                                     components: [row]
                                 });
