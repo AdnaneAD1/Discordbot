@@ -295,6 +295,15 @@ class Game {
 
         // Start timer for the night (Wolfy style)
         const timerSecs = await this.getRoundTimer();
+
+        const nightEmbed = new EmbedBuilder()
+            .setColor('#2f3136')
+            .setTitle(`🌃 Nuit ${this.turn}`)
+            .setDescription(`Le village s'endort...\n\n⏱️ **Fin de la nuit dans :** \`${timerSecs}s\``)
+            .setFooter({ text: 'Les rôles spéciaux prennent leurs décisions...' });
+
+        this.nightMessage = await this.thread.send({ embeds: [nightEmbed] });
+
         this.startTimer(timerSecs, async () => {
             await this.handleNightResult();
         });
@@ -704,20 +713,32 @@ class Game {
             await callback();
         }, seconds * 1000);
 
-        // Optionnel : Update l'embed toutes les 10s pour le compte à rebours visuel
+        // Mise à jour visuelle toutes les 5 secondes
         this.timerUpdate = setInterval(async () => {
             const remaining = Math.round((this.timerEnd - Date.now()) / 1000);
+
             if (remaining <= 0) {
                 clearInterval(this.timerUpdate);
+                if (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION') {
+                    await this.thread.send("⌛ **Temps écoulé !** Analyse des votes en cours...").catch(() => { });
+                } else if (this.state === 'NIGHT') {
+                    await this.thread.send("⌛ **La nuit touche à sa fin...** Le village se réveille.").catch(() => { });
+                }
                 return;
             }
 
-            if (this.votingMessage && this.state === 'DAY_VOTING') {
+            if (this.votingMessage && (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION' || this.state === 'DICTATOR_VOTING')) {
                 const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
-                embed.setDescription(`Il est temps de débattre et de voter contre un suspect !\n\n⏱️ **Fin des votes dans :** \`${remaining}s\``);
+                embed.setDescription(`Il est temps de décider !\n\n⏱️ **Fin dans :** \`${remaining}s\``);
                 await this.votingMessage.edit({ embeds: [embed] }).catch(() => { });
             }
-        }, 10000);
+
+            if (this.nightMessage && this.state === 'NIGHT') {
+                const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
+                embed.setDescription(`Le village s'endort...\n\n⏱️ **Fin de la nuit dans :** \`${remaining}s\``);
+                await this.nightMessage.edit({ embeds: [embed] }).catch(() => { });
+            }
+        }, 5000);
     }
 
     clearTimers() {
