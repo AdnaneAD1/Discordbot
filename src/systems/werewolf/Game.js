@@ -191,11 +191,27 @@ class Game {
 
         if (this.customRoles && this.customRoles.length > 0) {
             let roles = this.customRoles.map(id => new roleMap[id]());
-            // On s'assure d'avoir le bon nombre de rôles
+
+            // 1. Ajuster la taille en priorité
             if (roles.length < count) {
                 while (roles.length < count) roles.push(new Villageois());
             } else if (roles.length > count) {
                 roles = roles.slice(0, count);
+            }
+
+            // 2. Sécurité : Vérifier la présence d'au moins un Loup-Garou (basique)
+            // Note: on vérifie sur les instances créées car roles a été redimensionné
+            const hasWolf = roles.some(r => r.id === 'werewolf');
+
+            if (!hasWolf) {
+                // On privilégie de remplacer un simple Villageois pour ne pas perdre un rôle spécial
+                const villagerIndex = roles.findIndex(r => r.id === 'villager');
+                if (villagerIndex !== -1) {
+                    roles[villagerIndex] = new LoupGarou();
+                } else {
+                    // Si vraiment pas de villageois, on remplace le premier rôle
+                    roles[0] = new LoupGarou();
+                }
             }
             return roles;
         }
