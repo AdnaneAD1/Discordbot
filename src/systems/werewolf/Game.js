@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, AttachmentBuilder } = require('discord.js');
+const Player = require('./Player');
 const path = require('path');
 const fs = require('fs');
-const Player = require('./Player');
 
 class Game {
     constructor(client, channel, host, manager) {
