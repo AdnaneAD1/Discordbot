@@ -300,9 +300,17 @@ module.exports = {
                 const manager = interaction.client.werewolf;
                 // Note: select menus are often in private threads or DMs, 
                 // but the interaction.channel might be the thread.
-                const game = interaction.channel.type === ChannelType.PublicThread || interaction.channel.type === ChannelType.PrivateThread
-                    ? manager.getGame(interaction.channel.parentId)
-                    : manager.getGame(interaction.channel.id);
+                // Note: interaction.channel can be null in some contexts (ephemeral/DMs)
+                const channel = interaction.channel || interaction.message?.channel;
+
+                if (!channel) {
+                    console.error("Could not determine channel for interaction");
+                    return;
+                }
+
+                const game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
+                    ? manager.getGame(channel.parentId)
+                    : manager.getGame(channel.id);
                 // Si c'est un DM, on n'a pas interaction.message.channel.id facilement lié au game sans stocker plus d'infos.
                 // TODO: Trouver une meilleure façon de lier les DMs au jeu actif.
                 // En attendant, on assume que tout se passe dans les threads.
