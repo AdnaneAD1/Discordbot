@@ -7,7 +7,7 @@ class Pyromaniac extends Role {
         this.gassedIds = new Set();
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         const embed = new EmbedBuilder()
@@ -29,8 +29,7 @@ class Pyromaniac extends Role {
         );
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Pyromaniac action to ${player.id}`, e);
         }

@@ -8,7 +8,7 @@ class Witch extends Role {
         this.hasDeathPotion = true;
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         // La sorcière agit après les loups en général.
         // Cette méthode sera appelée par Game.js avec les infos de la victime.
         const victim = game.nightActions.wolfTargetId ? game.players.get(game.nightActions.wolfTargetId) : null;
@@ -46,8 +46,7 @@ class Witch extends Role {
         );
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Witch action to ${player.id}`, e);
         }

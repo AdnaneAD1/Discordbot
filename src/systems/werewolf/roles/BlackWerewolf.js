@@ -7,9 +7,10 @@ class BlackWerewolf extends Role {
         this.hasInfectionPower = true;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp, thread) {
         // Le loup noir voit la victime actuelle et peut décider de l'infecter
-        // On affichera le menu seulement si les loups ont déjà voté
+        // Cette logique est gérée dans handleNightResult pour l'instant car elle dépend du vote des loups
+        // Mais si on voulait déplacer la logique ici, on utiliserait 'thread'
     }
 }
 

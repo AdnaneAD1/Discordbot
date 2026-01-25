@@ -7,7 +7,7 @@ class Cupid extends Role {
         this.used = false;
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         if (game.turn === 1 && !this.used) {
             const alivePlayers = Array.from(game.players.values());
 
@@ -29,8 +29,7 @@ class Cupid extends Role {
             const row = new ActionRowBuilder().addComponents(select);
 
             try {
-                const user = await game.client.users.fetch(player.id);
-                await user.send({ embeds: [embed], components: [row] });
+                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
             } catch (e) {
                 console.error(`Failed to send Cupid action to ${player.id}`, e);
             }

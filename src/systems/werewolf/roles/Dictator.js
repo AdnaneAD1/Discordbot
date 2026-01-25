@@ -7,7 +7,7 @@ class Dictator extends Role {
         this.hasPower = true;
     }
 
-    async onDay(game, player, unixTimestamp) {
+    async onDay(game, player, unixTimestamp, thread) {
         if (!this.hasPower) return;
 
         const embed = new EmbedBuilder()
@@ -28,8 +28,13 @@ class Dictator extends Role {
         );
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            if (thread) {
+                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            } else {
+                // Fallback si jamais appelé sans thread (ne devrait pas arriver avec la nouvelle architecture)
+                const user = await game.client.users.fetch(player.id);
+                await user.send({ embeds: [embed], components: [row] });
+            }
         } catch (e) {
             console.error(`Failed to send Dictator power to ${player.id}`, e);
         }

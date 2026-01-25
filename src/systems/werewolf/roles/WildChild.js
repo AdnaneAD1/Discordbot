@@ -6,7 +6,7 @@ class WildChild extends Role {
         this.modelId = null;
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         if (game.turn === 1 && !this.modelId) {
             const alivePlayers = Array.from(game.players.values()).filter(p => p.id !== player.id);
 
@@ -27,8 +27,7 @@ class WildChild extends Role {
             const row = new ActionRowBuilder().addComponents(select);
 
             try {
-                const user = await game.client.users.fetch(player.id);
-                await user.send({ embeds: [embed], components: [row] });
+                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
             } catch (e) {
                 console.error(`Failed to send Wild Child action to ${player.id}`, e);
             }

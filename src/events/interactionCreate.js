@@ -188,6 +188,12 @@ module.exports = {
                     }
                     await interaction.deferUpdate(); // On valide l'appui
                     await game.start();
+                } else if (customId === 'lg_stop') {
+                    if (interaction.user.id !== game.host.id && !interaction.member.permissions.has('Administrator')) {
+                        return interaction.reply({ content: "❌ Seul l'hôte ou un admin peut arrêter la partie.", flags: [64] });
+                    }
+                    game.stop();
+                    await interaction.reply({ content: "🛑 La partie a été arrêtée.", flags: [64] });
                 } else if (customId === 'lg_config_composition') {
                     if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });
 
@@ -346,19 +352,37 @@ module.exports = {
                     game.nightActions.seerTargetId = values[0];
                     await interaction.reply({ content: `🔮 La boule de cristal révèle que <@${values[0]}> est : **${target.role.name}** !`, ephemeral: true });
                     await game.checkNightEnd();
-                } else if (customId === 'lg_dictator_vote') {
-                    const player = game.players.get(interaction.user.id);
-                    if (player && game.hasDictatorTakenOver) {
-                        player.voteTarget = values[0];
-                        await interaction.reply({ content: `⚖️ Sentence capitale prononcée contre <@${values[0]}>.`, ephemeral: true });
-                    }
                 } else if (customId === 'lg_mayor_vote') {
+                    const candidateId = values[0];
                     const player = game.players.get(interaction.user.id);
-                    if (player) {
-                        player.mayorVote = values[0];
-                        await interaction.reply({ content: `🗳️ Tu as voté pour <@${values[0]}> comme Maire.`, ephemeral: true });
+                    if (!player.isAlive) return interaction.reply({ content: '❌ Les morts ne votent pas !', flags: [64] });
+
+                    player.mayorVote = candidateId;
+
+                    // Vote Public
+                    const candidate = game.players.get(candidateId);
+                    await game.thread.send(`🗳️ **${interaction.user.username}** a voté pour **${candidate.username}** pour être Maire !`);
+
+                    await interaction.reply({ content: `✅ Vote pour ${candidate.username} enregistré.`, flags: [64] });
+                } else if (customId === 'lg_village_vote') {
+                    const targetId = values[0];
+                    const player = game.players.get(interaction.user.id);
+                    if (!player.isAlive) return interaction.reply({ content: '❌ Les morts ne votent pas !', flags: [64] });
+
+                    // Gestion vote précédent
+                    const oldTarget = player.voteTarget ? game.players.get(player.voteTarget) : null;
+                    player.voteTarget = targetId;
+
+                    // Vote Public
+                    const target = game.players.get(targetId);
+                    if (oldTarget && oldTarget.id !== targetId) {
+                        await game.thread.send(`🗳️ **${interaction.user.username}** a changé son vote : **${oldTarget.username}** ➔ **${target.username}**.`);
+                    } else if (!oldTarget) {
+                        await game.thread.send(`🗳️ **${interaction.user.username}** a voté contre **${target.username}**.`);
                     }
-                } else if (customId === 'lg_guard_action') {
+
+                    await interaction.reply({ content: `✅ Vote contre ${target.username} enregistré.`, flags: [64] });
+                } else if (customId === 'lg_dictator_vote') {
                     game.nightActions.guardTargetId = values[0];
                     const role = game.players.get(interaction.user.id).role;
                     role.lastProtectedId = values[0];

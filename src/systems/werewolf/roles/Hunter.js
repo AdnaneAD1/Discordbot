@@ -7,6 +7,10 @@ class Hunter extends Role {
     }
 
     async onDeath(game, player, unixTimestamp) {
+        // Le Chasseur interagit publiquement ou dans son thread ? 
+        // La demande était "tous les fils privés". Mais le chasseur mort agit souvent en public pour le drama ou en privé.
+        // Vu la configuration, on va utiliser le thread privé s'il est dispo, sinon public.
+        const thread = game.playerThreads.get(player.id);
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         if (alivePlayers.length === 0) return;
@@ -27,12 +31,14 @@ class Hunter extends Role {
         const row = new ActionRowBuilder().addComponents(select);
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            if (thread) {
+                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            } else {
+                // Fallback DM ou Thread
+                await game.thread.send(`⚠️ <@${player.id}> (Chasseur), vérifie tes MP pour utiliser ton pouvoir !`);
+            }
         } catch (e) {
             console.error(`Failed to send Hunter action to ${player.id}`, e);
-            // Si on ne peut pas envoyer de MP, on envoie dans le thread principal
-            await game.thread.send(`⚠️ <@${player.id}> (Chasseur), vérifie tes MP pour utiliser ton pouvoir !`);
         }
     }
 }

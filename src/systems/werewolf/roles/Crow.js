@@ -6,7 +6,7 @@ class Crow extends Role {
         super('crow', 'Corbeau', '🐦', 'Chaque nuit, vous pouvez désigner un joueur. Il recevra deux votes d\'office contre lui au prochain conseil.', 'VILLAGE');
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         const embed = new EmbedBuilder()
@@ -25,8 +25,7 @@ class Crow extends Role {
         const row = new ActionRowBuilder().addComponents(select);
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Crow action to ${player.id}`, e);
         }

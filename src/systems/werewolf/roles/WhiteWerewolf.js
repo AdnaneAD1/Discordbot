@@ -6,7 +6,7 @@ class WhiteWerewolf extends Role {
         super('white_werewolf', 'Loup Blanc', '⚪', 'Vous gagnez SEUL. Chaque deux nuits, vous pouvez choisir de dévorer un autre Loup-Garou.', 'WHITE_WEREWOLF');
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         // Le loup blanc agit une nuit sur deux
         if (game.turn % 2 === 0) {
             const wolves = Array.from(game.players.values()).filter(p => p.isAlive && p.role.team === 'WEREWOLF' && p.id !== player.id);
@@ -32,8 +32,7 @@ class WhiteWerewolf extends Role {
             const row = new ActionRowBuilder().addComponents(select);
 
             try {
-                const user = await game.client.users.fetch(player.id);
-                await user.send({ embeds: [embed], components: [row] });
+                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
             } catch (e) {
                 console.error(`Failed to send White Wolf action to ${player.id}`, e);
             }

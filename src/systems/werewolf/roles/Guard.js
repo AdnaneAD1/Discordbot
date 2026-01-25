@@ -7,7 +7,7 @@ class Guard extends Role {
         this.lastProtectedId = null;
     }
 
-    async onNight(game, player, unixTimestamp) {
+    async onNight(game, player, unixTimestamp, thread) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== this.lastProtectedId);
 
         const embed = new EmbedBuilder()
@@ -26,8 +26,7 @@ class Guard extends Role {
         const row = new ActionRowBuilder().addComponents(select);
 
         try {
-            const user = await game.client.users.fetch(player.id);
-            await user.send({ embeds: [embed], components: [row] });
+            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Guard action to ${player.id}`, e);
         }

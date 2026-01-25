@@ -9,6 +9,7 @@ class Game {
         this.manager = manager;
 
         this.players = new Map(); // UserID -> Player
+        this.playerThreads = new Map(); // UserID -> ThreadChannel (Universal Threads)
         this.state = 'LOBBY'; // LOBBY, NIGHT, DAY, VOTING, END
         this.thread = null; // Thread principal du jeu
         this.wolfThread = null; // Thread privé des loups
@@ -42,25 +43,49 @@ class Game {
             .setColor('#2b2d31')
             .setTitle('🐺 Loup-Garou - Nouvelle Partie')
             .setDescription(`Le Maire **${this.host.username}** recrute des villageois !\n\n**Joueurs (1/25) :**\n${this.host} (Hôte)`)
-            .setThumbnail('https://cdn-icons-png.flaticon.com/512/1993/1993290.png'); // Icone loup générique
+            .setThumbnail('https://cdn-icons-png.flaticon.com/512/1993/1993290.png');
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('lg_join').setLabel('Rejoindre').setStyle(ButtonStyle.Success).setEmoji('✋'),
             new ButtonBuilder().setCustomId('lg_leave').setLabel('Quitter').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('lg_start').setLabel('Lancer la partie').setStyle(ButtonStyle.Primary).setEmoji('🚀'),
+            new ButtonBuilder().setCustomId('lg_start').setLabel('Lancer').setStyle(ButtonStyle.Primary).setEmoji('🚀'),
+            new ButtonBuilder().setCustomId('lg_stop').setLabel('Arrêter').setStyle(ButtonStyle.Secondary).setEmoji('�')
+        );
+
+        const row2 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('lg_config_composition').setLabel('Composition').setStyle(ButtonStyle.Secondary).setEmoji('⚙️')
         );
 
         this.addPlayer(this.host);
 
-        // Création d'un thread dédié pour la partie
-        /* 
-           Note: Sur Discord, les threads privés nécessitent un niveau de boost ou d'être dans un channel forum/text spécifique.
-           Pour simplifier, on fera un thread public "Partie en cours" que seuls les joueurs devraient lire,
-           ou alors on gère les permissions si on est dans un salon privé.
-        */
+        this.lobbyMessage = await this.channel.send({ embeds: [embed], components: [row, row2] });
+    }
 
-        this.lobbyMessage = await this.channel.send({ embeds: [embed], components: [row] });
+    async stop() {
+        this.clearTimers();
+        this.state = 'END';
+        this.manager.endGame(this.channel.id);
+        if (this.thread) {
+            await this.thread.send("🛑 **La partie a été annulée.** Ce fil sera supprimé dans 10 secondes.");
+            this.cleanupThreads(10000);
+        }
+    }
+
+    async cleanupThreads(delayMs = 0) {
+        setTimeout(async () => {
+            try {
+                if (this.wolfThread) await this.wolfThread.delete().catch(() => { });
+                if (this.thread) await this.thread.delete().catch(() => { });
+
+                // Suppression des threads de joueurs
+                for (const thread of this.playerThreads.values()) {
+                    await thread.delete().catch(() => { });
+                }
+                this.playerThreads.clear();
+            } catch (e) {
+                console.error("Error deleting threads:", e);
+            }
+        }, delayMs);
     }
 
     addPlayer(user) {
@@ -115,49 +140,77 @@ class Game {
 
         // 2. Distribute Roles
         const roles = this.generateRoles(this.players.size);
-        const shuffledRoles = roles.sort(() => Math.random() - 0.5);
+
+        // Fisher-Yates Shuffle for true randomness
+        for (let i = roles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [roles[i], roles[j]] = [roles[j], roles[i]];
+        }
+        const shuffledRoles = roles;
 
         // Assign roles
         let i = 0;
         for (const player of this.players.values()) {
             player.assignRole(shuffledRoles[i]);
             i++;
-            // Send DM
+        }
+        // 3. Create Universal Player Threads & Send Roles
+        await this.createPlayerThreads();
+
+        this.logEvent("Distribution des rôles terminée et fils privés créés.");
+
+        // 4. Start Night
+        await this.startNight();
+    }
+
+    async createPlayerThreads() {
+        // Note: Creating many threads might hit rate limits. We'll do it sequentially with a small delay if needed.
+        for (const player of this.players.values()) {
             try {
-                const user = await this.client.users.fetch(player.id);
-                const dmEmbed = new EmbedBuilder()
-                    .setTitle(`Tu es ${player.role.name} ${player.role.emoji}`)
-                    .setDescription(player.role.description)
-                    .setColor(player.role.team === 'WEREWOLF' ? '#ff0000' : '#00ff00');
+                // Nom du fil : "Pseudo - Rôle" (ou juste Pseudo pour ne pas spoil si d'autres voient ?)
+                // Pour un vrai fil privé, seul le bot et l'user y sont.
+                // Sur Discord, PrivateThread nécessite que le bot invite l'user.
 
-                const { AttachmentBuilder } = require('discord.js');
+                const threadName = `🔒 ${player.username}`;
+                const thread = await this.channel.threads.create({
+                    name: threadName,
+                    type: ChannelType.PrivateThread,
+                    autoArchiveDuration: 60,
+                    invitable: false
+                });
+
+                await thread.members.add(player.id);
+                this.playerThreads.set(player.id, thread);
+
+                // Prepare Role Card
                 const files = [];
-
                 if (player.role.imagePath) {
-                    const path = require('path');
-                    const fs = require('fs');
-                    const imgPath = path.join(__dirname, '..', '..', 'assets', 'roles', player.role.imagePath);
-
-                    if (fs.existsSync(imgPath)) {
+                    try {
+                        const imgPath = path.join(__dirname, '..', 'assets', 'roles', player.role.imagePath);
                         const attachment = new AttachmentBuilder(imgPath, { name: player.role.imagePath });
-                        dmEmbed.setImage(`attachment://${player.role.imagePath}`);
                         files.push(attachment);
-                    } else {
-                        console.warn(`[WARNING] Role image not found: ${imgPath}`);
-                    }
+                    } catch (e) { console.error("Missing image for", player.role.name, e); }
                 }
 
-                await user.send({ embeds: [dmEmbed], files: files });
-                console.log(`[INFO] Role DM sent to ${user.tag}`);
+                const dmEmbed = new EmbedBuilder()
+                    .setTitle(`Tu es ${player.role.name} ${player.role.emoji}`)
+                    .setDescription(`**Ton objectif :** ${player.role.description}\n\nCe fil est ton espace privé. C'est ici que tu recevras les informations secrètes et que tu utiliseras tes pouvoirs.`)
+                    .setColor(player.role.team === 'WEREWOLF' ? '#ff0000' : '#00ff00');
+
+                if (files.length > 0) {
+                    dmEmbed.setThumbnail(`attachment://${player.role.imagePath}`);
+                }
+
+                await thread.send({ content: `<@${player.id}>`, embeds: [dmEmbed], files: files });
+
+                // Petite pause pour éviter le rate limit
+                await new Promise(r => setTimeout(r, 1000));
+
             } catch (e) {
-                console.error(`[ERROR] Failed to send role DM to ${player.id} (${player.username}):`, e.message);
-                this.thread.send(`⚠️ Impossible d'envoyer le rôle à <@${player.id}> en MP (Erreur: ${e.message}). Vérifie tes paramètres de confidentialité !`);
+                console.error(`Error creating thread for ${player.username}:`, e);
+                this.channel.send(`⚠️ Impossible de créer le fil privé pour <@${player.id}>.`);
             }
         }
-        this.logEvent("Distribution des rôles terminée.");
-
-        // 3. Start Night
-        await this.startNight();
     }
 
     generateRoles(count) {
@@ -241,6 +294,7 @@ class Game {
     }
 
     async startNight() {
+        if (this.state === 'END') return; // Loop Safety
         this.state = 'NIGHT';
         this.turn = (this.turn || 0) + 1;
 
@@ -319,7 +373,9 @@ class Game {
         // Call Role.onNight() for everyone (hooks)
         for (const player of this.players.values()) {
             if (player.isAlive && player.role) {
-                await player.role.onNight(this, player, unixTimestamp);
+                // On passe le thread privé s'il existe
+                const thread = this.playerThreads.get(player.id);
+                await player.role.onNight(game, player, unixTimestamp, thread);
             }
         }
 
@@ -407,26 +463,32 @@ class Game {
             const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
             const target = this.players.get(victimId);
             const unixTimestamp = Math.floor((Date.now() + 30000) / 1000); // 30s pour l'infection
+
             const embed = new EmbedBuilder()
                 .setTitle('🖤 Infection du Loup Noir')
                 .setDescription(`La victime des loups est <@${victimId}>. Voulez-vous utiliser votre pouvoir unique pour le transformer en loup ?\n\n⏱️ **Fin de la décision :** <t:${unixTimestamp}:R>`)
                 .setColor('#000000');
+
             const select = new StringSelectMenuBuilder()
                 .setCustomId('lg_black_wolf_infection')
                 .setPlaceholder('Infecter ?')
                 .addOptions([
-                    { label: `Infecter ${target.username}`, value: victimId },
-                    { label: 'Ne rien faire', value: 'skip' }
+                    { label: 'Infecter la cible (Devient Loup)', value: victimId, emoji: '💉' },
+                    { label: 'Ne rien faire', value: 'skip', emoji: '❌' }
                 ]);
+
             const row = new ActionRowBuilder().addComponents(select);
-            try {
-                const user = await this.client.users.fetch(blackWolf.id);
-                await user.send({ embeds: [embed], components: [row] });
-            } catch (e) { }
-            // Note: checkNightEnd needs to wait for black wolf if he decides to infect.
-            // But usually infection happens in a special turn. 
-            // We'll handle it by adding a check in handleNightResult.
+
+            // Send to private thread
+            const thread = this.playerThreads.get(blackWolf.id);
+            if (thread) {
+                await thread.send({ content: `<@${blackWolf.id}>`, embeds: [embed], components: [row] });
+            }
         }
+        // Note: checkNightEnd needs to wait for black wolf if he decides to infect.
+        // But usually infection happens in a special turn. 
+        // We'll handle it by adding a check in handleNightResult.
+
 
         // 2. Traitement Infection Loup Noir
         if (this.nightActions.blackWolfInfectedId && this.nightActions.blackWolfInfectedId !== 'skip' && victimId === this.nightActions.blackWolfInfectedId) {
@@ -592,11 +654,25 @@ class Game {
         this.clearTimers();
 
         const counts = {};
+        const voteDetails = [];
+
         for (const player of this.players.values()) {
             if (player.isAlive && player.mayorVote) {
                 counts[player.mayorVote] = (counts[player.mayorVote] || 0) + 1;
+
+                const candidate = this.players.get(player.mayorVote);
+                voteDetails.push(`🗳️ **${player.username}** ➔ **${candidate.username}**`);
+
                 player.mayorVote = null;
             }
+        }
+
+        if (voteDetails.length > 0) {
+            const embed = new EmbedBuilder()
+                .setTitle('🗳️ Résultat de l\'Élection')
+                .setDescription(voteDetails.join('\n'))
+                .setColor('#3498db');
+            await this.thread.send({ embeds: [embed] });
         }
 
         let winnerId = null;
@@ -671,6 +747,7 @@ class Game {
     }
 
     async startDay() {
+        if (this.state === 'END') return; // Loop Safety
         this.state = 'DAY_VOTING';
         const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
 
@@ -742,7 +819,7 @@ class Game {
             await callback();
         }, seconds * 1000);
 
-        // Optionnel : Notification de fin de temps
+        // Mise à jour visuelle périodique (fallback)
         this.timerUpdate = setInterval(async () => {
             const remaining = Math.round((this.timerEnd - Date.now()) / 1000);
 
@@ -755,6 +832,21 @@ class Game {
                 }
                 return;
             }
+
+            // Update messages to show text countdown if dynamic timestamp is not enough
+            if (this.votingMessage && (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION' || this.state === 'DICTATOR_VOTING')) {
+                const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
+                const unixTimestamp = Math.floor(this.timerEnd / 1000);
+                embed.setDescription(`Il est temps de décider !\n\n⏱️ **Temps restant :** \`${remaining}s\` (<t:${unixTimestamp}:R>)`);
+                await this.votingMessage.edit({ embeds: [embed] }).catch(() => { });
+            }
+
+            if (this.nightMessage && this.state === 'NIGHT') {
+                const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
+                const unixTimestamp = Math.floor(this.timerEnd / 1000);
+                embed.setDescription(`Le village s'endort...\n\n⏱️ **Temps restant :** \`${remaining}s\` (<t:${unixTimestamp}:R>)`);
+                await this.nightMessage.edit({ embeds: [embed] }).catch(() => { });
+            }
         }, 5000);
     }
 
@@ -763,7 +855,7 @@ class Game {
         if (this.timerUpdate) clearInterval(this.timerUpdate);
     }
 
-    checkWinCondition() {
+    async checkWinCondition() {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
         const wolves = alivePlayers.filter(p => p.role.team === 'WEREWOLF');
         const villagers = alivePlayers.filter(p => p.role.team === 'VILLAGE');
@@ -778,23 +870,31 @@ class Game {
         }
 
         if (whiteWolf && alivePlayers.length <= 2) {
-            this.thread.send('⚪ **VICTOIRE DU LOUP BLANC !** Il a dévoré tout le monde, même ses semblables.');
-            this.generateJournal('Victoire du Loup Blanc').then(embed => this.thread.send({ embeds: [embed] }));
+            await this.thread.send('⚪ **VICTOIRE DU LOUP BLANC !** Il a dévoré tout le monde, même ses semblables.');
+            const journalEmbed = await this.generateJournal('Victoire du Loup Blanc');
+            await this.thread.send({ embeds: [journalEmbed] });
+            await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
             this.manager.endGame(this.channel.id);
+            this.cleanupThreads(60000);
             return true;
         }
 
         if (wolves.length === 0 && !whiteWolf) {
-            this.thread.send('🎉 **VICTOIRE DU VILLAGE !** Tous les loups ont été éliminés.');
-            this.generateJournal('Victoire du Village').then(embed => this.thread.send({ embeds: [embed] }));
+            await this.thread.send('🎉 **VICTOIRE DU VILLAGE !** Tous les loups ont été éliminés.');
+            const journalEmbed = await this.generateJournal('Victoire du Village');
+            await this.thread.send({ embeds: [journalEmbed] });
+            await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
             this.manager.endGame(this.channel.id);
+            this.cleanupThreads(60000);
             return true;
         } else if ((wolves.length + (whiteWolf ? 1 : 0)) >= villagers.length) {
-            // Si le loup blanc est là, on ne finit pas forcément si c'est les loups qui restent
             if (!whiteWolf) {
-                this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
-                this.generateJournal('Victoire des Loups').then(embed => this.thread.send({ embeds: [embed] }));
+                await this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
+                const journalEmbed = await this.generateJournal('Victoire des Loups');
+                await this.thread.send({ embeds: [journalEmbed] });
+                await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
                 this.manager.endGame(this.channel.id);
+                this.cleanupThreads(60000);
                 return true;
             }
         }
@@ -814,19 +914,34 @@ class Game {
             this.hasDictatorTakenOver = false; // Reset
         } else {
             const counts = {};
+            const voteDetails = []; // Liste pour l'affichage public
 
             // Votes du Corbeau
             if (this.nightActions.crowTargetId) {
                 counts[this.nightActions.crowTargetId] = 2;
-                await this.thread.send(`🐦 Le Corbeau a porté malheur à <@${this.nightActions.crowTargetId}> (+2 votes) !`);
+                const target = this.players.get(this.nightActions.crowTargetId);
+                voteDetails.push(`🐦 **Corbeau** ➔ **${target.username}** (x2)`);
             }
 
             for (const player of this.players.values()) {
                 if (player.isAlive && player.voteTarget) {
                     const weight = (player.id === this.mayorId) ? 2 : 1;
                     counts[player.voteTarget] = (counts[player.voteTarget] || 0) + weight;
+
+                    const target = this.players.get(player.voteTarget);
+                    voteDetails.push(`🗳️ **${player.username}** ${weight > 1 ? '(Maire) ' : ''}➔ **${target.username}**`);
+
                     player.voteTarget = null; // Reset
                 }
+            }
+
+            // Affichage du résumé des votes
+            if (voteDetails.length > 0) {
+                const embed = new EmbedBuilder()
+                    .setTitle('🗳️ Résultat des Votes')
+                    .setDescription(voteDetails.join('\n'))
+                    .setColor('#f1c40f');
+                await this.thread.send({ embeds: [embed] });
             }
 
             if (Object.keys(counts).length > 0) {
