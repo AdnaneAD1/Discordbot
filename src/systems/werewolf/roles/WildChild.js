@@ -6,14 +6,14 @@ class WildChild extends Role {
         this.modelId = null;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         if (game.turn === 1 && !this.modelId) {
             const alivePlayers = Array.from(game.players.values()).filter(p => p.id !== player.id);
 
             const { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
             const embed = new EmbedBuilder()
                 .setTitle('🏹 Apprentissage de l\'Enfant Sauvage')
-                .setDescription('Choisissez un modèle à suivre. Si cette personne meurt, vous rejoindrez les loups.')
+                .setDescription(`Choisissez un modèle à suivre. Si cette personne meurt, vous rejoindrez les loups.\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
                 .setColor('#2ecc71');
 
             const select = new StringSelectMenuBuilder()

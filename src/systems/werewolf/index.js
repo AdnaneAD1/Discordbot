@@ -5,6 +5,7 @@ class WerewolfManager {
     constructor(client) {
         this.client = client;
         this.games = new Collection(); // ChannelID -> GameInstance
+        this.playerGames = new Map(); // UserID -> ChannelID
     }
 
     createGame(channel, host) {
@@ -12,7 +13,16 @@ class WerewolfManager {
 
         const game = new Game(this.client, channel, host, this);
         this.games.set(channel.id, game);
+        this.joinGame(host.id, channel.id);
         return game;
+    }
+
+    joinGame(userId, channelId) {
+        this.playerGames.set(userId, channelId);
+    }
+
+    leaveGame(userId) {
+        this.playerGames.delete(userId);
     }
 
     getGame(channelId) {
@@ -20,13 +30,19 @@ class WerewolfManager {
     }
 
     getGameByPlayerId(userId) {
-        for (const game of this.games.values()) {
-            if (game.players.has(userId)) return game;
-        }
-        return null;
+        const channelId = this.playerGames.get(userId);
+        if (!channelId) return null;
+        return this.games.get(channelId);
     }
 
     endGame(channelId) {
+        const game = this.games.get(channelId);
+        if (game) {
+            // Nettoyage de la map des joueurs pour cette partie
+            for (const playerId of game.players.keys()) {
+                this.playerGames.delete(playerId);
+            }
+        }
         this.games.delete(channelId);
     }
 }

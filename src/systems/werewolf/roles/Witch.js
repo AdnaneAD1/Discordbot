@@ -8,14 +8,14 @@ class Witch extends Role {
         this.hasDeathPotion = true;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         // La sorcière agit après les loups en général.
         // Cette méthode sera appelée par Game.js avec les infos de la victime.
-        const victim = game.nightAction.wolfTarget;
+        const victim = game.nightActions.wolfTargetId ? game.players.get(game.nightActions.wolfTargetId) : null;
 
         const embed = new EmbedBuilder()
             .setTitle('🧪 Pouvoir de la Sorcière')
-            .setDescription(victim ? `Les loups ont choisi de tuer <@${victim.id}>.` : "Les loups n'ont tué personne cette nuit.")
+            .setDescription(`${victim ? `Les loups ont choisi de tuer <@${victim.id}>.` : "Les loups n'ont tué personne cette nuit."}\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setColor('#2ecc71');
 
         const row = new ActionRowBuilder();

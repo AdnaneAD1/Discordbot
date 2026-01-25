@@ -7,13 +7,13 @@ class Cupid extends Role {
         this.used = false;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         if (game.turn === 1 && !this.used) {
             const alivePlayers = Array.from(game.players.values());
 
             const embed = new EmbedBuilder()
                 .setTitle('💘 Arc de Cupidon')
-                .setDescription('Choisissez DEUX joueurs pour les rendre amoureux...')
+                .setDescription(`Choisissez DEUX joueurs pour les rendre amoureux...\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
                 .setColor('#ffafbd');
 
             const select = new StringSelectMenuBuilder()

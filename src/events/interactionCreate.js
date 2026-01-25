@@ -148,16 +148,20 @@ module.exports = {
                 // Gestion des boutons Loup-Garou
                 const manager = interaction.client.werewolf;
 
-                // Note: interaction.channel can be null in some contexts (ephemeral/DMs)
+                // Recherche robuste de la partie
+                let game = null;
                 const channel = interaction.channel || interaction.message?.channel;
 
-                let game;
-                if (!channel || channel.type === ChannelType.DM) {
-                    game = manager.getGameByPlayerId(interaction.user.id);
-                } else {
-                    game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
-                        ? manager.getGame(channel.parentId)
-                        : manager.getGame(channel.id);
+                // 1. Essai via le mapping joueur
+                game = manager.getGameByPlayerId(interaction.user.id);
+
+                // 2. Fallback via le salon/thread
+                if (!game && channel) {
+                    if (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread) {
+                        game = manager.getGame(channel.parentId);
+                    } else {
+                        game = manager.getGame(channel.id);
+                    }
                 }
 
                 if (!game) {
@@ -309,29 +313,25 @@ module.exports = {
             const { customId, values } = interaction;
             if (customId.startsWith('lg_')) {
                 const manager = interaction.client.werewolf;
-                // Note: select menus are often in private threads or DMs, 
-                // but the interaction.channel might be the thread.
-                // Note: interaction.channel can be null in some contexts (ephemeral/DMs)
+                // Recherche robuste de la partie
+                let game = null;
                 const channel = interaction.channel || interaction.message?.channel;
 
-                if (!channel) {
-                    console.error("Could not determine channel for interaction");
-                    return;
+                // 1. Essai via le mapping joueur (le plus sûr pour les DMs)
+                game = manager.getGameByPlayerId(interaction.user.id);
+
+                // 2. Si pas trouvé (ou au cas où), essai via le salon/thread
+                if (!game && channel) {
+                    if (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread) {
+                        game = manager.getGame(channel.parentId);
+                    } else {
+                        game = manager.getGame(channel.id);
+                    }
                 }
 
-                let game;
-                if (channel.type === ChannelType.DM) {
-                    game = manager.getGameByPlayerId(interaction.user.id);
-                } else {
-                    game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
-                        ? manager.getGame(channel.parentId)
-                        : manager.getGame(channel.id);
+                if (!game) {
+                    return interaction.reply({ content: "❌ Impossible de trouver ta partie en cours. Elle est peut-être terminée.", flags: [64] });
                 }
-                // Si c'est un DM, on n'a pas interaction.message.channel.id facilement lié au game sans stocker plus d'infos.
-                // TODO: Trouver une meilleure façon de lier les DMs au jeu actif.
-                // En attendant, on assume que tout se passe dans les threads.
-
-                if (!game) return;
 
                 if (customId === 'lg_set_composition') {
                     if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });

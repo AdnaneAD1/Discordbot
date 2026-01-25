@@ -6,7 +6,7 @@ class WhiteWerewolf extends Role {
         super('white_werewolf', 'Loup Blanc', '⚪', 'Vous gagnez SEUL. Chaque deux nuits, vous pouvez choisir de dévorer un autre Loup-Garou.', 'WHITE_WEREWOLF');
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         // Le loup blanc agit une nuit sur deux
         if (game.turn % 2 === 0) {
             const wolves = Array.from(game.players.values()).filter(p => p.isAlive && p.role.team === 'WEREWOLF' && p.id !== player.id);
@@ -15,7 +15,7 @@ class WhiteWerewolf extends Role {
 
             const embed = new EmbedBuilder()
                 .setTitle('⚪ Faim du Loup Blanc')
-                .setDescription('C\'est votre nuit ! Voulez-vous dévorer l\'un de vos "frères" ?')
+                .setDescription(`C'est votre nuit ! Voulez-vous dévorer l'un de vos "frères" ?\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
                 .setColor('#ffffff');
 
             const select = new StringSelectMenuBuilder()

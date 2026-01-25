@@ -7,12 +7,12 @@ class Pyromaniac extends Role {
         this.gassedIds = new Set();
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         const embed = new EmbedBuilder()
             .setTitle('🔥 Obsession du Pyromane')
-            .setDescription(`Joueurs actuellement gazés : ${this.gassedIds.size}\nQue voulez-vous faire ce soir ?`)
+            .setDescription(`Joueurs actuellement gazés : ${this.gassedIds.size}\nQue voulez-vous faire ce soir ?\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setColor('#e67e22');
 
         const row = new ActionRowBuilder().addComponents(

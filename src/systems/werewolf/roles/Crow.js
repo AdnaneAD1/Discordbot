@@ -6,12 +6,12 @@ class Crow extends Role {
         super('crow', 'Corbeau', '🐦', 'Chaque nuit, vous pouvez désigner un joueur. Il recevra deux votes d\'office contre lui au prochain conseil.', 'VILLAGE');
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         const embed = new EmbedBuilder()
             .setTitle('🐦 Malédiction du Corbeau')
-            .setDescription('Désignez quelqu\'un à qui porter malheur pour le prochain vote...')
+            .setDescription(`Désignez quelqu'un à qui porter malheur pour le prochain vote...\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setColor('#2c3e50');
 
         const select = new StringSelectMenuBuilder()

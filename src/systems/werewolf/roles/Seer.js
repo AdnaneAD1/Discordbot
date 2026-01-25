@@ -6,12 +6,12 @@ class Seer extends Role {
         super('seer', 'Voyante', '🔮', 'Chaque nuit, vous pouvez découvrir le rôle d\'un joueur.', 'VILLAGE', 'seer.png');
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== player.id);
 
         const embed = new EmbedBuilder()
             .setTitle('🔮 Pouvoir de la Voyante')
-            .setDescription('Choisissez un joueur pour découvrir son secret...')
+            .setDescription(`Choisissez un joueur pour découvrir son secret...\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setColor('#9b59b6');
 
         const select = new StringSelectMenuBuilder()

@@ -7,12 +7,12 @@ class Dictator extends Role {
         this.hasPower = true;
     }
 
-    async onDay(game, player) {
+    async onDay(game, player, unixTimestamp) {
         if (!this.hasPower) return;
 
         const embed = new EmbedBuilder()
             .setTitle('👑 Pouvoir du Dictateur')
-            .setDescription('Voulez-vous prendre le pouvoir aujourd\'hui ? Si oui, vous serez le seul à voter.')
+            .setDescription(`Voulez-vous prendre le pouvoir aujourd'hui ? Si oui, vous serez le seul à voter.\n\n⏱️ **Fin de la décision :** <t:${unixTimestamp}:R>`)
             .setColor('#f1c40f');
 
         const row = new ActionRowBuilder().addComponents(

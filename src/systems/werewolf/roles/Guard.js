@@ -7,12 +7,12 @@ class Guard extends Role {
         this.lastProtectedId = null;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== this.lastProtectedId);
 
         const embed = new EmbedBuilder()
             .setTitle('🛡️ Protection du Garde')
-            .setDescription('Qui voulez-vous protéger cette nuit ?')
+            .setDescription(`Qui voulez-vous protéger cette nuit ?\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setColor('#3498db');
 
         const select = new StringSelectMenuBuilder()

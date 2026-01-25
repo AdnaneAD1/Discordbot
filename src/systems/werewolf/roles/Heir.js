@@ -6,14 +6,14 @@ class Heir extends Role {
         this.targetId = null;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp) {
         if (game.turn === 1 && !this.targetId) {
             const alivePlayers = Array.from(game.players.values()).filter(p => p.id !== player.id);
 
             const { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
             const embed = new EmbedBuilder()
                 .setTitle('📜 Testament de l\'Héritier')
-                .setDescription('Choisissez un joueur dont vous souhaitez hériter du rôle à sa mort.')
+                .setDescription(`Choisissez un joueur dont vous souhaitez hériter du rôle à sa mort.\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
                 .setColor('#f39c12');
 
             const select = new StringSelectMenuBuilder()

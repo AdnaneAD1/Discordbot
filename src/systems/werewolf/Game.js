@@ -66,12 +66,14 @@ class Game {
     addPlayer(user) {
         if (this.players.has(user.id)) return false;
         this.players.set(user.id, new Player(user));
+        this.manager.joinGame(user.id, this.channel.id);
         return true;
     }
 
     removePlayer(userId) {
         if (!this.players.has(userId)) return false;
         this.players.delete(userId);
+        this.manager.leaveGame(userId);
         return true;
     }
 
@@ -286,23 +288,24 @@ class Game {
         this.nightActions.pyroGasTargetIds = [];
         this.nightActions.pyroAction = null;
 
-        // Call Role.onNight() for everyone (hooks)
-        for (const player of this.players.values()) {
-            if (player.isAlive && player.role) {
-                await player.role.onNight(this, player);
-            }
-        }
-
         // Start timer for the night (Wolfy style)
         const timerSecs = await this.getRoundTimer();
+        const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
 
         const nightEmbed = new EmbedBuilder()
             .setColor('#2f3136')
             .setTitle(`🌃 Nuit ${this.turn}`)
-            .setDescription(`Le village s'endort...\n\n⏱️ **Fin de la nuit dans :** \`${timerSecs}s\``)
+            .setDescription(`Le village s'endort...\n\n⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R>`)
             .setFooter({ text: 'Les rôles spéciaux prennent leurs décisions...' });
 
         this.nightMessage = await this.thread.send({ embeds: [nightEmbed] });
+
+        // Call Role.onNight() for everyone (hooks)
+        for (const player of this.players.values()) {
+            if (player.isAlive && player.role) {
+                await player.role.onNight(this, player, unixTimestamp);
+            }
+        }
 
         this.startTimer(timerSecs, async () => {
             await this.handleNightResult();
@@ -387,9 +390,10 @@ class Game {
         if (blackWolf && victimId) {
             const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
             const target = this.players.get(victimId);
+            const unixTimestamp = Math.floor((Date.now() + 30000) / 1000); // 30s pour l'infection
             const embed = new EmbedBuilder()
                 .setTitle('🖤 Infection du Loup Noir')
-                .setDescription(`La victime des loups est <@${victimId}>. Voulez-vous utiliser votre pouvoir unique pour le transformer en loup ?`)
+                .setDescription(`La victime des loups est <@${victimId}>. Voulez-vous utiliser votre pouvoir unique pour le transformer en loup ?\n\n⏱️ **Fin de la décision :** <t:${unixTimestamp}:R>`)
                 .setColor('#000000');
             const select = new StringSelectMenuBuilder()
                 .setCustomId('lg_black_wolf_infection')
@@ -521,9 +525,12 @@ class Game {
         }
 
         if (!this.checkWinCondition()) {
+            const timerSecs = await this.getRoundTimer();
+            const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
+
             // Dictateur : Hook Day
             for (const p of this.players.values()) {
-                if (p.isAlive && p.role.onDay) await p.role.onDay(this, p);
+                if (p.isAlive && p.role.onDay) await p.role.onDay(this, p, unixTimestamp);
             }
 
             // Élection du Maire le premier matin
@@ -539,11 +546,13 @@ class Game {
         this.state = 'MAYOR_ELECTION';
         const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
 
+        const unixTimestamp = Math.floor((Date.now() + 30000) / 1000);
         const embed = new EmbedBuilder()
             .setTitle('🗳️ Élection du Maire')
-            .setDescription('Le village a besoin d\'un chef ! Qui voulez-vous élire comme Maire ?\n*(Le Maire a un vote qui compte double en cas d\'égalité)*')
+            .setDescription(`Le village a besoin d'un chef ! Qui voulez-vous élire comme Maire ?\n*(Le Maire a un vote qui compte double en cas d'égalité)*\n\n⏱️ **Fin de l'élection :** <t:${unixTimestamp}:R>`)
             .setColor('#3498db');
 
+        // ... (rest of the select menu code)
         const { StringSelectMenuBuilder } = require('discord.js');
         const select = new StringSelectMenuBuilder()
             .setCustomId('lg_mayor_vote')
@@ -555,7 +564,7 @@ class Game {
 
         const row = new ActionRowBuilder().addComponents(select);
 
-        const msg = await this.thread.send({ embeds: [embed], components: [row] });
+        this.votingMessage = await this.thread.send({ embeds: [embed], components: [row] });
 
         this.startTimer(30, async () => {
             await this.handleMayorResult();
@@ -630,7 +639,8 @@ class Game {
 
         // Hunter logic
         if (player.role && player.role.id === 'hunter') {
-            await player.role.onDeath(this, player);
+            const unixTimestamp = this.timerEnd ? Math.floor(this.timerEnd / 1000) : null;
+            await player.role.onDeath(this, player, unixTimestamp);
         }
 
         // Lover logic
@@ -654,6 +664,7 @@ class Game {
         }
 
         const timerSecs = await this.getRoundTimer();
+        const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
 
         if (this.hasDictatorTakenOver) {
             const dictator = alivePlayers.find(p => p.role.id === 'dictator');
@@ -661,9 +672,10 @@ class Game {
 
             const embed = new EmbedBuilder()
                 .setTitle('👑 Décision du Dictateur')
-                .setDescription(`Le village attend votre sentence, <@${dictator.id}>.\n\n⏱️ **Fin de la dictature dans :** \`${timerSecs}s\``)
+                .setDescription(`Le village attend votre sentence, <@${dictator.id}>.\n\n⏱️ **Fin de la dictature :** <t:${unixTimestamp}:R>`)
                 .setColor('#f1c40f');
 
+            // ... (rest of search/select code)
             const { StringSelectMenuBuilder } = require('discord.js');
             const select = new StringSelectMenuBuilder()
                 .setCustomId('lg_dictator_vote')
@@ -678,9 +690,10 @@ class Game {
         } else {
             const embed = new EmbedBuilder()
                 .setTitle('⚖️ Le Conseil du Village')
-                .setDescription(`Il est temps de débattre et de voter contre un suspect !\n\n⏱️ **Fin des votes dans :** \`${timerSecs}s\``)
+                .setDescription(`Il est temps de débattre et de voter contre un suspect !\n\n⏱️ **Fin des votes :** <t:${unixTimestamp}:R>`)
                 .setColor('#f1c40f');
 
+            // ... (rest of search/select code)
             const { StringSelectMenuBuilder } = require('discord.js');
             const select = new StringSelectMenuBuilder()
                 .setCustomId('lg_village_vote')
@@ -713,7 +726,7 @@ class Game {
             await callback();
         }, seconds * 1000);
 
-        // Mise à jour visuelle toutes les 5 secondes
+        // Optionnel : Notification de fin de temps
         this.timerUpdate = setInterval(async () => {
             const remaining = Math.round((this.timerEnd - Date.now()) / 1000);
 
@@ -725,18 +738,6 @@ class Game {
                     await this.thread.send("⌛ **La nuit touche à sa fin...** Le village se réveille.").catch(() => { });
                 }
                 return;
-            }
-
-            if (this.votingMessage && (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION' || this.state === 'DICTATOR_VOTING')) {
-                const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
-                embed.setDescription(`Il est temps de décider !\n\n⏱️ **Fin dans :** \`${remaining}s\``);
-                await this.votingMessage.edit({ embeds: [embed] }).catch(() => { });
-            }
-
-            if (this.nightMessage && this.state === 'NIGHT') {
-                const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
-                embed.setDescription(`Le village s'endort...\n\n⏱️ **Fin de la nuit dans :** \`${remaining}s\``);
-                await this.nightMessage.edit({ embeds: [embed] }).catch(() => { });
             }
         }, 5000);
     }
