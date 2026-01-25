@@ -150,31 +150,31 @@ module.exports = {
                 const game = manager.getGame(interaction.message.channel.id);
 
                 if (!game) {
-                    return interaction.reply({ content: "❌ Cette partie n'existe plus.", ephemeral: true });
+                    return interaction.reply({ content: "❌ Cette partie n'existe plus.", flags: [64] });
                 }
 
                 if (customId === 'lg_join') {
                     if (game.addPlayer(interaction.user)) {
                         await game.updateLobby();
-                        await interaction.reply({ content: "✅ Tu as rejoint la partie !", ephemeral: true });
+                        await interaction.reply({ content: "✅ Tu as rejoint la partie !", flags: [64] });
                     } else {
-                        await interaction.reply({ content: "⚠️ Tu es déjà dans la partie.", ephemeral: true });
+                        await interaction.reply({ content: "⚠️ Tu es déjà dans la partie.", flags: [64] });
                     }
                 } else if (customId === 'lg_leave') {
                     if (game.removePlayer(interaction.user.id)) {
                         await game.updateLobby();
-                        await interaction.reply({ content: "👋 Tu as quitté la partie.", ephemeral: true });
+                        await interaction.reply({ content: "👋 Tu as quitté la partie.", flags: [64] });
                     } else {
-                        await interaction.reply({ content: "⚠️ Tu n'es pas dans la partie.", ephemeral: true });
+                        await interaction.reply({ content: "⚠️ Tu n'es pas dans la partie.", flags: [64] });
                     }
                 } else if (customId === 'lg_start') {
                     if (interaction.user.id !== game.host.id) {
-                        return interaction.reply({ content: "❌ Seul l'hôte peut lancer la partie.", ephemeral: true });
+                        return interaction.reply({ content: "❌ Seul l'hôte peut lancer la partie.", flags: [64] });
                     }
                     await interaction.deferUpdate(); // On valide l'appui
                     await game.start();
                 } else if (customId === 'lg_config_composition') {
-                    if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', ephemeral: true });
+                    if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });
 
                     const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
                     const availableRoles = [
@@ -214,17 +214,17 @@ module.exports = {
                     await interaction.reply({
                         content: '⚙️ **Configuration de la composition**\nSélectionnez les rôles spéciaux que vous voulez inclure. Les places restantes seront comblées par des Villageois.',
                         components: [row],
-                        ephemeral: true
+                        flags: [64]
                     });
                 } else if (customId.startsWith('imagine_regenerate_')) {
                     const userId = customId.split('_')[2];
                     if (interaction.user.id !== userId) {
-                        return interaction.reply({ content: '❌ Seul l\'auteur peut régénérer cette image.', ephemeral: true });
+                        return interaction.reply({ content: '❌ Seul l\'auteur peut régénérer cette image.', flags: [64] });
                     }
 
                     const cache = interaction.client.imageCache?.get(userId);
                     if (!cache) {
-                        return interaction.reply({ content: '❌ Données de régénération expirées.', ephemeral: true });
+                        return interaction.reply({ content: '❌ Données de régénération expirées.', flags: [64] });
                     }
 
                     // Vérifier le cooldown
@@ -233,7 +233,7 @@ module.exports = {
                     if (!cooldownCheck.allowed) {
                         return interaction.reply({
                             content: `⏱️ Tu as atteint la limite. Réessaye dans **${cooldownCheck.resetIn} minute(s)**.`,
-                            ephemeral: true
+                            flags: [64]
                         });
                     }
 
@@ -300,7 +300,9 @@ module.exports = {
                 const manager = interaction.client.werewolf;
                 // Note: select menus are often in private threads or DMs, 
                 // but the interaction.channel might be the thread.
-                const game = manager.getGame(interaction.message?.channel?.parentId || interaction.message?.channel?.id);
+                const game = interaction.channel.type === ChannelType.PublicThread || interaction.channel.type === ChannelType.PrivateThread
+                    ? manager.getGame(interaction.channel.parentId)
+                    : manager.getGame(interaction.channel.id);
                 // Si c'est un DM, on n'a pas interaction.message.channel.id facilement lié au game sans stocker plus d'infos.
                 // TODO: Trouver une meilleure façon de lier les DMs au jeu actif.
                 // En attendant, on assume que tout se passe dans les threads.
@@ -308,12 +310,12 @@ module.exports = {
                 if (!game) return;
 
                 if (customId === 'lg_set_composition') {
-                    if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', ephemeral: true });
+                    if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });
                     game.customRoles = values;
-                    await interaction.reply({ content: `✅ Composition mise à jour ! (${values.length} rôles sélectionnés).`, ephemeral: true });
+                    await interaction.reply({ content: `✅ Composition mise à jour ! (${values.length} rôles sélectionnés).`, flags: [64] });
                 } else if (customId === 'lg_wolf_vote') {
                     game.nightActions.wolfVotes.set(interaction.user.id, values[0]);
-                    await interaction.reply({ content: `🐺 Vote enregistré contre <@${values[0]}>.`, ephemeral: true });
+                    await interaction.reply({ content: `🐺 Vote enregistré contre <@${values[0]}>.`, flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_seer_action') {
                     const target = game.players.get(values[0]);
