@@ -147,7 +147,18 @@ module.exports = {
             } else if (customId.startsWith('lg_')) {
                 // Gestion des boutons Loup-Garou
                 const manager = interaction.client.werewolf;
-                const game = manager.getGame(interaction.message.channel.id);
+
+                // Note: interaction.channel can be null in some contexts (ephemeral/DMs)
+                const channel = interaction.channel || interaction.message?.channel;
+
+                let game;
+                if (!channel || channel.type === ChannelType.DM) {
+                    game = manager.getGameByPlayerId(interaction.user.id);
+                } else {
+                    game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
+                        ? manager.getGame(channel.parentId)
+                        : manager.getGame(channel.id);
+                }
 
                 if (!game) {
                     return interaction.reply({ content: "❌ Cette partie n'existe plus.", flags: [64] });
@@ -308,9 +319,14 @@ module.exports = {
                     return;
                 }
 
-                const game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
-                    ? manager.getGame(channel.parentId)
-                    : manager.getGame(channel.id);
+                let game;
+                if (channel.type === ChannelType.DM) {
+                    game = manager.getGameByPlayerId(interaction.user.id);
+                } else {
+                    game = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread
+                        ? manager.getGame(channel.parentId)
+                        : manager.getGame(channel.id);
+                }
                 // Si c'est un DM, on n'a pas interaction.message.channel.id facilement lié au game sans stocker plus d'infos.
                 // TODO: Trouver une meilleure façon de lier les DMs au jeu actif.
                 // En attendant, on assume que tout se passe dans les threads.

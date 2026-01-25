@@ -133,16 +133,23 @@ class Game {
 
                 if (player.role.imagePath) {
                     const path = require('path');
+                    const fs = require('fs');
                     const imgPath = path.join(__dirname, '..', '..', 'assets', 'roles', player.role.imagePath);
-                    const attachment = new AttachmentBuilder(imgPath, { name: player.role.imagePath });
-                    dmEmbed.setImage(`attachment://${player.role.imagePath}`);
-                    files.push(attachment);
+
+                    if (fs.existsSync(imgPath)) {
+                        const attachment = new AttachmentBuilder(imgPath, { name: player.role.imagePath });
+                        dmEmbed.setImage(`attachment://${player.role.imagePath}`);
+                        files.push(attachment);
+                    } else {
+                        console.warn(`[WARNING] Role image not found: ${imgPath}`);
+                    }
                 }
 
                 await user.send({ embeds: [dmEmbed], files: files });
+                console.log(`[INFO] Role DM sent to ${user.tag}`);
             } catch (e) {
-                console.error(`Failed to send role DM to ${player.id}:`, e);
-                this.thread.send(`⚠️ Impossible d'envoyer un MP à <@${player.id}>. Active tes MP !`);
+                console.error(`[ERROR] Failed to send role DM to ${player.id} (${player.username}):`, e.message);
+                this.thread.send(`⚠️ Impossible d'envoyer le rôle à <@${player.id}> en MP (Erreur: ${e.message}). Vérifie tes paramètres de confidentialité !`);
             }
         }
         this.logEvent("Distribution des rôles terminée.");
@@ -403,7 +410,9 @@ class Game {
             try {
                 const user = await this.client.users.fetch(victim.id);
                 await user.send("🖤 **Tu as été infecté !** Tu es désormais un Loup-Garou et tu gagnes avec eux.");
-            } catch (e) { }
+            } catch (e) {
+                console.error(`[ERROR] Failed to send infection DM to ${victim.id}:`, e.message);
+            }
 
             // Update Black Wolf power
             const blackWolf = Array.from(this.players.values()).find(p => p.role.id === 'black_werewolf');
@@ -481,7 +490,9 @@ class Game {
                     const u2 = await this.client.users.fetch(p2.id);
                     await u1.send(`💘 Tu es amoureux de **${p2.username}** ! Si l'un meurt, l'autre aussi.`);
                     await u2.send(`💘 Tu es amoureux de **${p1.username}** ! Si l'un meurt, l'autre aussi.`);
-                } catch (e) { }
+                } catch (e) {
+                    console.error(`[ERROR] Failed to send Lovers DM:`, e.message);
+                }
             }
         }
 
@@ -586,7 +597,9 @@ class Game {
                 try {
                     const user = await this.client.users.fetch(p.id);
                     await user.send(`📜 Ton protecteur est mort. Tu hérites de son rôle : **${p.role.name}** !`);
-                } catch (e) { }
+                } catch (e) {
+                    console.error(`[ERROR] Failed to send Heir DM to ${p.id}:`, e.message);
+                }
                 break;
             }
         }
@@ -599,7 +612,9 @@ class Game {
                 try {
                     const user = await this.client.users.fetch(p.id);
                     await user.send("🏹 **Ton modèle est mort.** La haine t'envahit... Tu es désormais un Loup-Garou !");
-                } catch (e) { }
+                } catch (e) {
+                    console.error(`[ERROR] Failed to send Wild Child DM to ${p.id}:`, e.message);
+                }
                 await this.thread.send("🏹 L'Enfant Sauvage a perdu son guide et a rejoint les loups...");
             }
         }

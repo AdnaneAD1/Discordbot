@@ -19,6 +19,13 @@ class WerewolfManager {
         return this.games.get(channelId);
     }
 
+    getGameByPlayerId(userId) {
+        for (const game of this.games.values()) {
+            if (game.players.has(userId)) return game;
+        }
+        return null;
+    }
+
     endGame(channelId) {
         this.games.delete(channelId);
     }
