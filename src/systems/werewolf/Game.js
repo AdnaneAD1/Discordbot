@@ -49,7 +49,7 @@ class Game {
             new ButtonBuilder().setCustomId('lg_join').setLabel('Rejoindre').setStyle(ButtonStyle.Success).setEmoji('✋'),
             new ButtonBuilder().setCustomId('lg_leave').setLabel('Quitter').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('lg_start').setLabel('Lancer').setStyle(ButtonStyle.Primary).setEmoji('🚀'),
-            new ButtonBuilder().setCustomId('lg_stop').setLabel('Arrêter').setStyle(ButtonStyle.Secondary).setEmoji('�')
+            new ButtonBuilder().setCustomId('lg_stop').setLabel('Arrêter').setStyle(ButtonStyle.Secondary).setEmoji('🛑')
         );
 
         const row2 = new ActionRowBuilder().addComponents(
