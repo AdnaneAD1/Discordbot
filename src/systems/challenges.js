@@ -1,30 +1,44 @@
 const { db } = require('../services/firebase');
 
 async function getActiveChallenges(guildId) {
-    const snapshot = await db.collection('guilds').doc(guildId).collection('challenges').where('active', '==', true).get();
+    const now = new Date();
+    const snapshot = await db.collection('guilds').doc(guildId).collection('challenges')
+        .where('active', '==', true)
+        .where('expiresAt', '>', now)
+        .get();
+
     const challenges = [];
     snapshot.forEach(doc => challenges.push({ id: doc.id, ...doc.data() }));
     return challenges;
 }
 
-async function completeChallenge(member, challengeId) {
-    const guildId = member.guild.id;
-    const challengeRef = db.collection('guilds').doc(guildId).collection('challenges').doc(challengeId);
-    const challenge = (await challengeRef.get()).data();
+async function cleanupExpiredChallenges(client) {
+    const now = new Date();
+    console.log(`[SYSTEM] Lancement du nettoyage des défis expirés...`);
 
-    if (!challenge || !challenge.active) return { success: false, message: 'Défi introuvable ou expiré.' };
+    try {
+        const guildsSnapshot = await db.collection('guilds').get();
 
-    const userChallengeRef = db.collection('guilds').doc(guildId).collection('users').doc(member.id).collection('completed_challenges').doc(challengeId);
-    const completedDoc = await userChallengeRef.get();
+        for (const guildDoc of guildsSnapshot.docs) {
+            const challengesRef = db.collection('guilds').doc(guildDoc.id).collection('challenges');
+            const expiredSnapshot = await challengesRef
+                .where('active', '==', true)
+                .where('expiresAt', '<=', now)
+                .get();
 
-    if (completedDoc.exists) return { success: false, message: 'Vous avez déjà terminé ce défi.' };
+            if (expiredSnapshot.empty) continue;
 
-    await userChallengeRef.set({ completedAt: new Date() });
+            const batch = db.batch();
+            expiredSnapshot.forEach(doc => {
+                batch.update(doc.ref, { active: false });
+                console.log(`[INFO] Défi expiré désactivé : ${doc.data().title} (${doc.id}) sur le serveur ${guildDoc.id}`);
+            });
 
-    const { addXP } = require('./xp');
-    await addXP(member, challenge.rewardXp, 'challenge');
-
-    return { success: true, rewardXp: challenge.rewardXp };
+            await batch.commit();
+        }
+    } catch (error) {
+        console.error(`[ERROR] Erreur lors du nettoyage des défis :`, error);
+    }
 }
 
-module.exports = { getActiveChallenges, completeChallenge };
+module.exports = { getActiveChallenges, completeChallenge, cleanupExpiredChallenges };

@@ -54,4 +54,18 @@ for (const file of eventFiles) {
     }
 }
 
+const { cleanupExpiredChallenges } = require('./systems/challenges');
+
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+
+    // Nettoyage initial au démarrage
+    cleanupExpiredChallenges(client);
+
+    // Nettoyage toutes les 15 minutes
+    setInterval(() => {
+        cleanupExpiredChallenges(client);
+    }, 15 * 60 * 1000);
+});
+
 client.login(process.env.DISCORD_TOKEN);

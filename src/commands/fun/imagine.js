@@ -148,7 +148,7 @@ async function generateImage(prompt, userId) {
             method: 'POST',
             body: JSON.stringify({
                 prompt: prompt,
-                model: 'stabilityai/stable-diffusion-xl-base-1.0',
+                model: 'black-forest-labs/FLUX.1-schnell',
                 response_format: 'b64_json'
             })
         });
