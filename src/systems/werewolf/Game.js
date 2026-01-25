@@ -1,4 +1,6 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, AttachmentBuilder } = require('discord.js');
+const path = require('path');
+const fs = require('fs');
 const Player = require('./Player');
 
 class Game {
@@ -375,7 +377,7 @@ class Game {
             if (player.isAlive && player.role) {
                 // On passe le thread privé s'il existe
                 const thread = this.playerThreads.get(player.id);
-                await player.role.onNight(game, player, unixTimestamp, thread);
+                await player.role.onNight(this, player, unixTimestamp, thread);
             }
         }
 
