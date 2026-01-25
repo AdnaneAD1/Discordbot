@@ -61,24 +61,25 @@ module.exports = {
                 }
             }
         } else if (interaction.isButton()) {
-            if (interaction.customId.startsWith('ticket_')) {
-                const type = interaction.customId.split('_')[1];
+            const { customId } = interaction;
+            if (customId.startsWith('ticket_')) {
+                const type = customId.split('_')[1];
                 const { createTicket } = require('../systems/tickets');
                 const channel = await createTicket(interaction, type);
                 await interaction.reply({ content: `✅ Votre ticket a été créé : ${channel}`, flags: [64] });
-            } else if (interaction.customId === 'close_ticket') {
+            } else if (customId === 'close_ticket') {
                 const { closeTicket } = require('../systems/tickets');
                 await closeTicket(interaction.channel, interaction.user);
-            } else if (interaction.customId === 'giveaway_entry') {
+            } else if (customId === 'giveaway_entry') {
                 const { handleEntry } = require('../systems/giveaways');
                 await handleEntry(interaction);
-            } else if (interaction.customId.startsWith('music_')) {
+            } else if (customId.startsWith('music_')) {
                 const { kazagumo } = interaction.client;
                 const player = kazagumo.players.get(interaction.guild.id);
 
                 if (!player) return interaction.reply({ content: '❌ Plus de musique en cours.', flags: [64] });
 
-                const action = interaction.customId.replace('music_', '');
+                const action = customId.replace('music_', '');
 
                 switch (action) {
                     case 'back':

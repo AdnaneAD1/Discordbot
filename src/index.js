@@ -56,7 +56,7 @@ for (const file of eventFiles) {
 
 const { cleanupExpiredChallenges } = require('./systems/challenges');
 
-client.once('ready', () => {
+client.once('clientReady', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
     // Nettoyage initial au démarrage
