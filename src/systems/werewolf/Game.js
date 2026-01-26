@@ -247,54 +247,55 @@ class Game {
             'villager': Villageois, 'werewolf': LoupGarou
         };
 
+        const roles = [];
+        const targetWolfCount = Math.max(1, Math.floor(count / 4));
+
+        // 1. Démarrer avec la compo personnalisée si elle existe
         if (this.customRoles && this.customRoles.length > 0) {
-            let roles = this.customRoles.map(id => new roleMap[id]());
-
-            // 1. Ajuster la taille en priorité
-            if (roles.length < count) {
-                while (roles.length < count) roles.push(new Villageois());
-            } else if (roles.length > count) {
-                roles = roles.slice(0, count);
+            for (const id of this.customRoles) {
+                if (roles.length < count) roles.push(new roleMap[id]());
             }
+        }
 
-            // 2. Sécurité : Vérifier la présence d'au moins un Loup-Garou (basique)
-            // Note: on vérifie sur les instances créées car roles a été redimensionné
-            const hasWolf = roles.some(r => r.id === 'werewolf');
+        // 2. Préparer le "Pool" pour le remplissage intelligent
+        // On exclut les loups de base car on les gère par ratio
+        const specialVillagers = [Voyante, Sorciere, Chasseur, Cupidon, Garde, Mentaliste, Fossoyeur, Dictateur, Corbeau, Ancien, Heritier, EnfantSauvage];
+        const specialEvil = [LoupNoir, Sorcier];
+        const neutrals = [LoupBlanc, Pyromane];
 
-            if (!hasWolf) {
-                // On privilégie de remplacer un simple Villageois pour ne pas perdre un rôle spécial
-                const villagerIndex = roles.findIndex(r => r.id === 'villager');
-                if (villagerIndex !== -1) {
-                    roles[villagerIndex] = new LoupGarou();
+        // 3. Remplissage jusqu'au nombre de joueurs
+        while (roles.length < count) {
+            const currentWolves = roles.filter(r => r.team === 'WEREWOLF' || r.id === 'white_werewolf').length;
+
+            if (currentWolves < targetWolfCount) {
+                // On ajoute un loup (soit Spécial soit Normal)
+                if (Math.random() > 0.5) {
+                    roles.push(new LoupGarou());
                 } else {
-                    // Si vraiment pas de villageois, on remplace le premier rôle
-                    roles[0] = new LoupGarou();
+                    const RoleClass = specialEvil[Math.floor(Math.random() * specialEvil.length)];
+                    roles.push(new RoleClass());
+                }
+            } else {
+                // On ajoute un villageois spécial ou neutre (ou simple villageois s'il y en a déjà beaucoup)
+                const rand = Math.random();
+                if (rand < 0.15) { // 15% de chance pour un Neutre
+                    const RoleClass = neutrals[Math.floor(Math.random() * neutrals.length)];
+                    roles.push(new RoleClass());
+                } else if (rand < 0.85) { // 70% de chance pour un Villageois Spécial
+                    const RoleClass = specialVillagers[Math.floor(Math.random() * specialVillagers.length)];
+                    // Éviter les doublons de rôles uniques (optionnel mais recommandé)
+                    if (!roles.some(r => r instanceof RoleClass)) {
+                        roles.push(new RoleClass());
+                    } else {
+                        roles.push(new Villageois());
+                    }
+                } else {
+                    roles.push(new Villageois());
                 }
             }
-            return roles;
         }
 
-        const roles = [];
-        const wolfCount = Math.max(1, Math.floor(count / 4));
-        for (let i = 0; i < wolfCount; i++) roles.push(new LoupGarou());
-
-        if (count >= 4) roles.push(new Voyante());
-        if (count >= 5) roles.push(new Sorciere());
-        if (count >= 6) roles.push(new Chasseur());
-        if (count >= 7) roles.push(new Cupidon());
-        if (count >= 8) roles.push(new Garde());
-        if (count >= 9) roles.push(new Mentaliste());
-        if (count >= 10) roles.push(new Fossoyeur());
-        if (count >= 11) roles.push(new Dictateur());
-        if (count >= 12) roles.push(new LoupBlanc());
-        if (count >= 13) roles.push(new Corbeau());
-        if (count >= 14) roles.push(new Ancien());
-        if (count >= 15) roles.push(new Heritier());
-
-        while (roles.length < count) {
-            roles.push(new Villageois());
-        }
-
+        // 4. Mélange final
         return roles;
     }
 
@@ -623,13 +624,15 @@ class Game {
                 for (const p of this.players.values()) {
                     if (p.isAlive && p.role.onDay) await p.role.onDay(this, p, unixTimestamp);
                 }
+            }
 
-                // Élection du Maire le premier matin
-                if (this.turn === 1 && !this.mayorId) {
-                    await this.startMayorElection();
-                } else {
-                    await this.startDay();
-                }
+            if (await this.checkWinCondition()) return;
+
+            // Élection du Maire le premier matin
+            if (this.turn === 1 && !this.mayorId) {
+                await this.startMayorElection();
+            } else {
+                await this.startDay();
             }
         } catch (error) {
             console.error("CRITICAL ERROR in handleNightResult:", error);
@@ -641,14 +644,13 @@ class Game {
         this.state = 'MAYOR_ELECTION';
         const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
 
+        const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
         const unixTimestamp = Math.floor((Date.now() + 30000) / 1000);
         const embed = new EmbedBuilder()
             .setTitle('🗳️ Élection du Maire')
             .setDescription(`Le village a besoin d'un chef ! Qui voulez-vous élire comme Maire ?\n*(Le Maire a un vote qui compte double en cas d'égalité)*\n\n⏱️ **Fin de l'élection :** <t:${unixTimestamp}:R>`)
             .setColor('#3498db');
 
-        // ... (rest of the select menu code)
-        const { StringSelectMenuBuilder } = require('discord.js');
         const select = new StringSelectMenuBuilder()
             .setCustomId('lg_mayor_vote')
             .setPlaceholder('Voter pour un candidat')
@@ -658,7 +660,6 @@ class Game {
             })));
 
         const row = new ActionRowBuilder().addComponents(select);
-
         this.votingMessage = await this.thread.send({ embeds: [embed], components: [row] });
 
         this.startTimer(30, async () => {
@@ -832,7 +833,7 @@ class Game {
         return (config.exists && config.data().timer) || 60;
     }
 
-    startTimer(seconds, callback) {
+    async startTimer(seconds, callback) {
         if (this.timer) clearTimeout(this.timer);
         if (this.timerUpdate) clearInterval(this.timerUpdate);
 
@@ -842,64 +843,6 @@ class Game {
             this.clearTimers();
             await callback();
         }, seconds * 1000);
-
-        // Mise à jour visuelle périodique (toutes les 5s pour éviter le rate limit)
-        this.timerUpdate = setInterval(async () => {
-            const remaining = Math.round((this.timerEnd - Date.now()) / 1000);
-
-            if (remaining <= 0) {
-                clearInterval(this.timerUpdate);
-                return;
-            }
-
-            const unixTimestamp = Math.floor(this.timerEnd / 1000);
-
-            // 1. Update Voting Message (Village/Maire/Dictateur)
-            if (this.votingMessage && (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION' || this.state === 'DICTATOR_VOTING')) {
-                try {
-                    const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
-                    const desc = embed.data.description;
-                    if (desc) {
-                        const newDesc = desc.replace(/⏱️ \*\*Fin (?:de l'élection|du vote) :\*\* <t:\d+:R>/, `⏱️ **Fin de la décision :** <t:${unixTimestamp}:R> (en ligne \`${remaining}s\`)`);
-                        if (newDesc !== desc) {
-                            await this.votingMessage.edit({ embeds: [embed.setDescription(newDesc)] }).catch(() => { });
-                        }
-                    }
-                } catch (e) { }
-            }
-
-            // 2. Update Night Message
-            if (this.nightMessage && this.state === 'NIGHT') {
-                try {
-                    const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
-                    const desc = embed.data.description;
-                    if (desc) {
-                        const newDesc = desc.replace(/⏱️ \*\*Fin de la nuit :\*\* <t:\d+:R>/, `⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
-                        if (newDesc !== desc) {
-                            await this.nightMessage.edit({ embeds: [embed.setDescription(newDesc)] }).catch(() => { });
-                        }
-                    }
-                } catch (e) { }
-            }
-
-            // 3. Update Private Role Action Messages
-            for (const [userId, msg] of this.roleActionMessages.entries()) {
-                try {
-                    if (msg.embeds && msg.embeds[0]) {
-                        const embed = EmbedBuilder.from(msg.embeds[0]);
-                        const desc = embed.data.description;
-                        if (desc) {
-                            const newDesc = desc.replace(/⏱️ \*\*Fin de la nuit :\*\* <t:\d+:R>/, `⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
-                            const finalDesc = newDesc.replace(/⏱️ \*\*Fin de la décision :\*\* <t:\d+:R>/, `⏱️ **Fin de la décision :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
-
-                            if (finalDesc !== desc) {
-                                await msg.edit({ embeds: [embed.setDescription(finalDesc)] }).catch(() => { });
-                            }
-                        }
-                    }
-                } catch (e) { }
-            }
-        }, 5000);
     }
 
     clearTimers() {
@@ -907,97 +850,35 @@ class Game {
         if (this.timerUpdate) clearInterval(this.timerUpdate);
     }
 
-    async checkWinCondition() {
-        const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
-        const wolves = alivePlayers.filter(p => p.role.team === 'WEREWOLF');
-        const villagers = alivePlayers.filter(p => p.role.team === 'VILLAGE');
-        const whiteWolf = alivePlayers.find(p => p.role.id === 'white_werewolf');
-        const pyro = alivePlayers.find(p => p.role.id === 'pyromaniac');
-
-        if (pyro && alivePlayers.length <= 2) {
-            this.thread.send('🔥 **VICTOIRE DU PYROMANE !** Il a réduit le village en cendres et rit seul au milieu des ruines.');
-            this.generateJournal('Victoire du Pyromane').then(embed => this.thread.send({ embeds: [embed] }));
-            this.manager.endGame(this.channel.id);
-            return true;
-        }
-
-        if (whiteWolf && alivePlayers.length <= 2) {
-            await this.thread.send('⚪ **VICTOIRE DU LOUP BLANC !** Il a dévoré tout le monde, même ses semblables.');
-            const journalEmbed = await this.generateJournal('Victoire du Loup Blanc');
-            await this.thread.send({ embeds: [journalEmbed] });
-            await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
-            this.manager.endGame(this.channel.id);
-            this.cleanupThreads(60000);
-            return true;
-        }
-
-        if (wolves.length === 0 && !whiteWolf) {
-            await this.thread.send('🎉 **VICTOIRE DU VILLAGE !** Tous les loups ont été éliminés.');
-            const journalEmbed = await this.generateJournal('Victoire du Village');
-            await this.thread.send({ embeds: [journalEmbed] });
-            await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
-            this.manager.endGame(this.channel.id);
-            this.cleanupThreads(60000);
-            return true;
-        } else if ((wolves.length + (whiteWolf ? 1 : 0)) >= villagers.length) {
-            if (!whiteWolf) {
-                await this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
-                const journalEmbed = await this.generateJournal('Victoire des Loups');
-                await this.thread.send({ embeds: [journalEmbed] });
-                await this.thread.send("🧹 **Fin de partie.** Ce fil sera supprimé dans 60 secondes.");
-                this.manager.endGame(this.channel.id);
-                this.cleanupThreads(60000);
-                return true;
-            }
-        }
-        return false;
-    }
-
     async handleVillageVoteResult() {
         if (this.state !== 'DAY_VOTING') return;
         this.clearTimers();
 
+        const counts = {};
+        for (const player of this.players.values()) {
+            if (player.isAlive && player.voteTarget) {
+                counts[player.voteTarget] = (counts[player.voteTarget] || 0) + 1;
+            }
+        }
+
         let victimId = null;
-
         if (this.hasDictatorTakenOver) {
-            // Seul le vote du dictateur compte
-            const dictator = Array.from(this.players.values()).find(p => p.role.id === 'dictator');
-            victimId = dictator.voteTarget;
-            this.hasDictatorTakenOver = false; // Reset
-        } else {
-            const counts = {};
-            const voteDetails = []; // Liste pour l'affichage public
+            const dictator = Array.from(this.players.values()).find(p => p.role.id === 'dictator' && p.isAlive);
+            victimId = dictator?.voteTarget;
+            this.hasDictatorTakenOver = false; // Reset power for next turn (if he had it)
+        } else if (Object.keys(counts).length > 0) {
+            const maxVotes = Math.max(...Object.values(counts));
+            const tied = Object.keys(counts).filter(id => counts[id] === maxVotes);
 
-            // Votes du Corbeau
-            if (this.nightActions.crowTargetId) {
-                counts[this.nightActions.crowTargetId] = 2;
-                const target = this.players.get(this.nightActions.crowTargetId);
-                voteDetails.push(`🐦 **Corbeau** ➔ **${target.username}** (x2)`);
-            }
-
-            for (const player of this.players.values()) {
-                if (player.isAlive && player.voteTarget) {
-                    const weight = (player.id === this.mayorId) ? 2 : 1;
-                    counts[player.voteTarget] = (counts[player.voteTarget] || 0) + weight;
-
-                    const target = this.players.get(player.voteTarget);
-                    voteDetails.push(`🗳️ **${player.username}** ${weight > 1 ? '(Maire) ' : ''}➔ **${target.username}**`);
-
-                    player.voteTarget = null; // Reset
+            if (tied.length === 1) {
+                victimId = tied[0];
+            } else if (this.mayorId && this.players.get(this.mayorId).isAlive) {
+                const mayor = this.players.get(this.mayorId);
+                const mayorTarget = mayor.voteTarget;
+                if (tied.includes(mayorTarget)) {
+                    victimId = mayorTarget;
+                    await this.thread.send(`⚖️ Égalité ! Le Maire <@${this.mayorId}> tranche en faveur de l'élimination de <@${victimId}>.`);
                 }
-            }
-
-            // Affichage du résumé des votes
-            if (voteDetails.length > 0) {
-                const embed = new EmbedBuilder()
-                    .setTitle('🗳️ Résultat des Votes')
-                    .setDescription(voteDetails.join('\n'))
-                    .setColor('#f1c40f');
-                await this.thread.send({ embeds: [embed] });
-            }
-
-            if (Object.keys(counts).length > 0) {
-                victimId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
             }
         }
 
@@ -1021,7 +902,7 @@ class Game {
             this.lastDead = victim;
         }
 
-        if (!this.checkWinCondition()) {
+        if (!(await this.checkWinCondition())) {
             await this.startNight();
         }
     }
@@ -1048,7 +929,7 @@ class Game {
         if (this.thread) this.thread.setArchived(true).catch(() => { });
         if (this.wolfThread) this.wolfThread.setArchived(true).catch(() => { });
         this.manager.endGame(this.channel.id);
-        this.channel.send("🛑 **Partie annulée par l'administrateur.**");
+        this.channel.send("🛑 **Partie annulée.**");
     }
 }
 

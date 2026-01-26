@@ -388,12 +388,21 @@ module.exports = {
                     }
 
                     await interaction.reply({ content: `✅ Vote contre ${target.username} enregistré.`, flags: [64] });
-                } else if (customId === 'lg_dictator_vote') {
+                } else if (customId === 'lg_guard_action') {
                     game.nightActions.guardTargetId = values[0];
                     const role = game.players.get(interaction.user.id).role;
                     role.lastProtectedId = values[0];
                     await interaction.reply({ content: `🛡️ Tu protèges <@${values[0]}> cette nuit.`, flags: [64] });
                     await game.checkNightEnd();
+                } else if (customId === 'lg_dictator_vote') {
+                    const player = game.players.get(interaction.user.id);
+                    player.voteTarget = values[0];
+                    const target = game.players.get(values[0]);
+                    await game.thread.send(`👑 **Par décret dictatorial**, <@${player.id}> a désigné sa cible : **${target.username}**.`);
+                    await interaction.reply({ content: `✅ Décret acté contre ${target.username}.`, flags: [64] });
+                    // Immediate resolution of the day
+                    game.clearTimers();
+                    await game.handleVillageVoteResult();
                 } else if (customId === 'lg_cupid_action') {
                     game.nightActions.cupidTargets = values;
                     await interaction.reply({ content: `💘 Tu as lié <@${values[0]}> et <@${values[1]}> par les liens du destin.`, flags: [64] });
@@ -435,21 +444,6 @@ module.exports = {
                     await game.thread.send(`🔫 Un coup de feu retentit... Dans son dernier souffle, le Chasseur a abattu <@${values[0]}> qui était **${game.players.get(values[0]).role.name}**.`);
                     if (game.state === 'DAY_VOTING' || game.state === 'NIGHT') {
                         await game.checkWinCondition();
-                    }
-                } else if (customId === 'lg_village_vote') {
-                    // Enregistrer ou modifier le vote
-                    const player = game.players.get(interaction.user.id);
-                    if (!player || !player.isAlive) {
-                        return interaction.reply({ content: "❌ Tu ne peux pas voter.", flags: [64] });
-                    }
-
-                    const oldTargetId = player.voteTarget;
-                    player.voteTarget = values[0];
-
-                    if (oldTargetId) {
-                        await interaction.reply({ content: `⚖️ Vote modifié ! Nouveau vote contre <@${values[0]}>.`, flags: [64] });
-                    } else {
-                        await interaction.reply({ content: `⚖️ Tu as voté contre <@${values[0]}>.`, flags: [64] });
                     }
                 } else if (customId === 'lg_witch_kill_target') {
                     const victimId = values[0];
