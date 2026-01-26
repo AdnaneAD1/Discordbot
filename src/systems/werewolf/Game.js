@@ -188,10 +188,12 @@ class Game {
                 const files = [];
                 if (player.role.imagePath) {
                     try {
-                        const imgPath = path.join(__dirname, '..', 'assets', 'roles', player.role.imagePath);
-                        const attachment = new AttachmentBuilder(imgPath, { name: player.role.imagePath });
-                        files.push(attachment);
-                    } catch (e) { console.error("Missing image for", player.role.name, e); }
+                        const imgPath = path.resolve(__dirname, '../../assets/roles', player.role.imagePath);
+                        if (fs.existsSync(imgPath)) {
+                            const attachment = new AttachmentBuilder(imgPath, { name: player.role.imagePath });
+                            files.push(attachment);
+                        }
+                    } catch (e) { console.error("Error checking role image", e); }
                 }
 
                 const dmEmbed = new EmbedBuilder()
