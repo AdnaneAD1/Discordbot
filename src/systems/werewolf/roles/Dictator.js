@@ -29,11 +29,11 @@ class Dictator extends Role {
 
         try {
             if (thread) {
-                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+                return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
             } else {
                 // Fallback si jamais appelé sans thread (ne devrait pas arriver avec la nouvelle architecture)
                 const user = await game.client.users.fetch(player.id);
-                await user.send({ embeds: [embed], components: [row] });
+                return await user.send({ embeds: [embed], components: [row] });
             }
         } catch (e) {
             console.error(`Failed to send Dictator power to ${player.id}`, e);

@@ -32,10 +32,11 @@ class Hunter extends Role {
 
         try {
             if (thread) {
-                await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+                return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
             } else {
                 // Fallback DM ou Thread
-                await game.thread.send(`⚠️ <@${player.id}> (Chasseur), vérifie tes MP pour utiliser ton pouvoir !`);
+                const msg = await game.thread.send(`⚠️ <@${player.id}> (Chasseur), vérifie tes MP pour utiliser ton pouvoir !`);
+                return msg;
             }
         } catch (e) {
             console.error(`Failed to send Hunter action to ${player.id}`, e);

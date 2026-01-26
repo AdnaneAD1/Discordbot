@@ -25,7 +25,7 @@ class Seer extends Role {
         const row = new ActionRowBuilder().addComponents(select);
 
         try {
-            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Seer action to ${player.id}`, e);
         }

@@ -34,6 +34,7 @@ class Game {
         this.mayorId = null; // ID du Maire élu
         this.logs = []; // Journal des événements
         this.customRoles = []; // Liste des IDs de rôles choisis manuellement
+        this.roleActionMessages = new Map(); // UserID -> Message (Active action prompt)
     }
 
     logEvent(message) {
@@ -379,7 +380,8 @@ class Game {
             if (player.isAlive && player.role) {
                 // On passe le thread privé s'il existe
                 const thread = this.playerThreads.get(player.id);
-                await player.role.onNight(this, player, unixTimestamp, thread);
+                const msg = await player.role.onNight(this, player, unixTimestamp, thread);
+                if (msg) this.roleActionMessages.set(player.id, msg);
             }
         }
 
@@ -443,184 +445,195 @@ class Game {
 
     async handleNightResult() {
         if (this.state !== 'NIGHT') return;
-        this.clearTimers();
-        this.state = 'DAY';
+        try {
+            this.clearTimers();
+            this.state = 'DAY';
 
-        // 1. Calculer la victime des loups
-        let victimId = null;
-        let isUnanimous = false;
-        if (this.nightActions.wolfVotes.size > 0) {
-            const counts = {};
-            for (const targetId of this.nightActions.wolfVotes.values()) {
-                counts[targetId] = (counts[targetId] || 0) + 1;
-            }
-            victimId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+            // Clean active action messages
+            this.roleActionMessages.clear();
 
-            const wolfCount = Array.from(this.players.values()).filter(p => p.role.team === 'WEREWOLF' && p.isAlive).length;
-            if (counts[victimId] === wolfCount) isUnanimous = true;
-        }
-        this.nightActions.wolfTargetId = victimId;
-
-        // Loup Noir : Infection
-        const blackWolf = Array.from(this.players.values()).find(p => p.role.id === 'black_werewolf' && p.isAlive && p.role.hasInfectionPower);
-        if (blackWolf && victimId) {
-            const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
-            const target = this.players.get(victimId);
-            const unixTimestamp = Math.floor((Date.now() + 30000) / 1000); // 30s pour l'infection
-
-            const embed = new EmbedBuilder()
-                .setTitle('🖤 Infection du Loup Noir')
-                .setDescription(`La victime des loups est <@${victimId}>. Voulez-vous utiliser votre pouvoir unique pour le transformer en loup ?\n\n⏱️ **Fin de la décision :** <t:${unixTimestamp}:R>`)
-                .setColor('#000000');
-
-            const select = new StringSelectMenuBuilder()
-                .setCustomId('lg_black_wolf_infection')
-                .setPlaceholder('Infecter ?')
-                .addOptions([
-                    { label: 'Infecter la cible (Devient Loup)', value: victimId, emoji: '💉' },
-                    { label: 'Ne rien faire', value: 'skip', emoji: '❌' }
-                ]);
-
-            const row = new ActionRowBuilder().addComponents(select);
-
-            // Send to private thread
-            const thread = this.playerThreads.get(blackWolf.id);
-            if (thread) {
-                await thread.send({ content: `<@${blackWolf.id}>`, embeds: [embed], components: [row] });
-            }
-        }
-        // Note: checkNightEnd needs to wait for black wolf if he decides to infect.
-        // But usually infection happens in a special turn. 
-        // We'll handle it by adding a check in handleNightResult.
-
-
-        // 2. Traitement Infection Loup Noir
-        if (this.nightActions.blackWolfInfectedId && this.nightActions.blackWolfInfectedId !== 'skip' && victimId === this.nightActions.blackWolfInfectedId) {
-            const victim = this.players.get(this.nightActions.blackWolfInfectedId);
-            victim.role.team = 'WEREWOLF';
-            victim.isInfected = true;
-            victimId = null; // Il ne meurt plus, il est infecté
-
-            // Message au nouveau loup
-            try {
-                const user = await this.client.users.fetch(victim.id);
-                await user.send("🖤 **Tu as été infecté !** Tu es désormais un Loup-Garou et tu gagnes avec eux.");
-            } catch (e) {
-                console.error(`[ERROR] Failed to send infection DM to ${victim.id}:`, e.message);
-            }
-
-            // Update Black Wolf power
-            const blackWolf = Array.from(this.players.values()).find(p => p.role.id === 'black_werewolf');
-            if (blackWolf) blackWolf.role.hasInfectionPower = false;
-
-            this.logEvent(`Le Loup Noir a infecté **${victim.username}**.`);
-            await this.thread.send("🖤 Une ombre maléfique s'est répandue cette nuit...");
-        }
-
-        // 3. Traitement Loup Blanc
-        if (this.nightActions.whiteWolfTargetId && this.nightActions.whiteWolfTargetId !== 'skip') {
-            const wwTarget = this.players.get(this.nightActions.whiteWolfTargetId);
-            this.logEvent(`Le Loup Blanc a dévoré **${wwTarget?.username}**.`);
-            await this.applyDeath(this.nightActions.whiteWolfTargetId);
-        }
-
-        // 4. Traitement Pyromane
-        if (this.nightActions.pyroAction === 'BURN') {
-            const pyro = Array.from(this.players.values()).find(p => p.role.id === 'pyromaniac');
-            if (pyro) {
-                this.logEvent(`Le Pyromane a déclenché l'incendie !`);
-                for (const targetId of pyro.role.gassedIds) {
-                    await this.applyDeath(targetId);
+            // 1. Calculer la victime des loups
+            let victimId = null;
+            let isUnanimous = false;
+            if (this.nightActions.wolfVotes.size > 0) {
+                const counts = {};
+                for (const targetId of this.nightActions.wolfVotes.values()) {
+                    counts[targetId] = (counts[targetId] || 0) + 1;
                 }
-                pyro.role.gassedIds.clear();
-                await this.thread.send("🔥 **L'incendie s'est déclaré !** Tous les joueurs gazés ont péri dans les flammes.");
+                victimId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+
+                const wolfCount = Array.from(this.players.values()).filter(p => p.role.team === 'WEREWOLF' && p.isAlive).length;
+                if (counts[victimId] === wolfCount) isUnanimous = true;
             }
-        } else if (this.nightActions.pyroAction === 'GAS') {
-            const pyro = Array.from(this.players.values()).find(p => p.role.id === 'pyromaniac');
-            if (pyro) {
-                this.logEvent(`Le Pyromane a gazé de nouvelles victimes.`);
-                for (const targetId of this.nightActions.pyroGasTargetIds) {
-                    pyro.role.gassedIds.add(targetId);
+            this.isWolfUnanimous = isUnanimous;
+            this.nightActions.wolfTargetId = victimId;
+
+            // Loup Noir : Infection
+            const blackWolf = Array.from(this.players.values()).find(p => p.role.id === 'black_werewolf' && p.isAlive && p.role.hasInfectionPower);
+            if (blackWolf && victimId) {
+                const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+                const target = this.players.get(victimId);
+                const unixTimestamp = Math.floor((Date.now() + 30000) / 1000); // 30s pour l'infection
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🖤 Infection du Loup Noir')
+                    .setDescription(`La victime des loups est <@${victimId}>. Voulez-vous utiliser votre pouvoir unique pour le transformer en loup ?\n\n⏱️ **Fin de la décision :** <t:${unixTimestamp}:R>`)
+                    .setColor('#000000');
+
+                const select = new StringSelectMenuBuilder()
+                    .setCustomId('lg_black_wolf_infection')
+                    .setPlaceholder('Infecter ?')
+                    .addOptions([
+                        { label: 'Infecter la cible (Devient Loup)', value: victimId, emoji: '💉' },
+                        { label: 'Ne rien faire', value: 'skip', emoji: '❌' }
+                    ]);
+
+                const row = new ActionRowBuilder().addComponents(select);
+
+                // Send to private thread
+                const thread = this.playerThreads.get(blackWolf.id);
+                if (thread) {
+                    await thread.send({ content: `<@${blackWolf.id}>`, embeds: [embed], components: [row] });
                 }
             }
-        }
+            // Note: checkNightEnd needs to wait for black wolf if he decides to infect.
+            // But usually infection happens in a special turn. 
+            // We'll handle it by adding a check in handleNightResult.
 
-        // 5. Vérifier Protection du Garde / Ancien
-        if (victimId) {
-            const victimPlayer = this.players.get(victimId);
-            if (this.nightActions.guardTargetId === victimId) {
-                this.logEvent(`Le Garde a protégé la cible des loups (**${victimPlayer.username}**).`);
-                victimId = null; // Sauvé par le garde
-            } else if (victimPlayer && victimPlayer.role.id === 'elder' && victimPlayer.role.extraLife) {
-                victimPlayer.role.extraLife = false;
-                this.logEvent(`L'Ancien a survécu à l'attaque des loups.`);
-                await this.thread.send(`👴 L'Ancien a survécu à une attaque fatale cette nuit !`);
-                victimId = null;
-            }
-        }
 
-        // 3. Traitement Sorcière
-        if (this.nightActions.witchAction) {
-            if (this.nightActions.witchAction.type === 'SAVE' && this.nightActions.witchAction.targetId === victimId) {
-                victimId = null;
-            } else if (this.nightActions.witchAction.type === 'KILL' && this.nightActions.witchAction.targetId) {
-                await this.applyDeath(this.nightActions.witchAction.targetId);
-            }
-        }
+            // 2. Traitement Infection Loup Noir
+            if (this.nightActions.blackWolfInfectedId && this.nightActions.blackWolfInfectedId !== 'skip' && victimId === this.nightActions.blackWolfInfectedId) {
+                const victim = this.players.get(this.nightActions.blackWolfInfectedId);
+                victim.role.team = 'WEREWOLF';
+                victim.isInfected = true;
+                victimId = null; // Il ne meurt plus, il est infecté
 
-        // 4. Appliquer la mort de la victime des loups
-        if (victimId) {
-            await this.applyDeath(victimId);
-        }
-
-        // 5. Liaison Cupid (Nuit 1)
-        if (this.turn === 1 && this.nightActions.cupidTargets.length === 2) {
-            const p1 = this.players.get(this.nightActions.cupidTargets[0]);
-            const p2 = this.players.get(this.nightActions.cupidTargets[1]);
-            if (p1 && p2) {
-                p1.lover = p2.id;
-                p2.lover = p1.id;
+                // Message au nouveau loup
                 try {
-                    const u1 = await this.client.users.fetch(p1.id);
-                    const u2 = await this.client.users.fetch(p2.id);
-                    await u1.send(`💘 Tu es amoureux de **${p2.username}** ! Si l'un meurt, l'autre aussi.`);
-                    await u2.send(`💘 Tu es amoureux de **${p1.username}** ! Si l'un meurt, l'autre aussi.`);
+                    const victimThread = this.playerThreads.get(victim.id);
+                    if (victimThread) {
+                        await victimThread.send("🖤 **Tu as été infecté !** Tu es désormais un Loup-Garou et tu gagnes avec eux.");
+                    }
                 } catch (e) {
-                    console.error(`[ERROR] Failed to send Lovers DM:`, e.message);
+                    console.error(`[ERROR] Failed to send infection notification to ${victim.id}:`, e.message);
+                }
+
+                // Update Black Wolf power
+                const blackWolf = Array.from(this.players.values()).find(p => p.role.id === 'black_werewolf');
+                if (blackWolf) blackWolf.role.hasInfectionPower = false;
+
+                this.logEvent(`Le Loup Noir a infecté **${victim.username}**.`);
+                await this.thread.send("🖤 Une ombre maléfique s'est répandue cette nuit...");
+            }
+
+            // 3. Traitement Loup Blanc
+            if (this.nightActions.whiteWolfTargetId && this.nightActions.whiteWolfTargetId !== 'skip') {
+                const wwTarget = this.players.get(this.nightActions.whiteWolfTargetId);
+                this.logEvent(`Le Loup Blanc a dévoré **${wwTarget?.username}**.`);
+                await this.applyDeath(this.nightActions.whiteWolfTargetId);
+            }
+
+            // 4. Traitement Pyromane
+            if (this.nightActions.pyroAction === 'BURN') {
+                const pyro = Array.from(this.players.values()).find(p => p.role.id === 'pyromaniac');
+                if (pyro) {
+                    this.logEvent(`Le Pyromane a déclenché l'incendie !`);
+                    for (const targetId of pyro.role.gassedIds) {
+                        await this.applyDeath(targetId);
+                    }
+                    pyro.role.gassedIds.clear();
+                    await this.thread.send("🔥 **L'incendie s'est déclaré !** Tous les joueurs gazés ont péri dans les flammes.");
+                }
+            } else if (this.nightActions.pyroAction === 'GAS') {
+                const pyro = Array.from(this.players.values()).find(p => p.role.id === 'pyromaniac');
+                if (pyro) {
+                    this.logEvent(`Le Pyromane a gazé de nouvelles victimes.`);
+                    for (const targetId of this.nightActions.pyroGasTargetIds) {
+                        pyro.role.gassedIds.add(targetId);
+                    }
                 }
             }
-        }
 
-        await this.thread.send(`🌅 **Le soleil se lève sur le village...**`);
-
-        const alivePlayersEnd = Array.from(this.players.values());
-        const deadThisNight = alivePlayersEnd.filter(p => p.justDied);
-
-        if (deadThisNight.length > 0) {
-            for (const p of deadThisNight) {
-                await this.thread.send(`💀 <@${p.id}> a été retrouvé sans vie. Il était **${p.role.name}**.`);
-                p.justDied = false;
-                this.lastDead = p; // Sauvegarde pour le Fossoyeur
-            }
-        } else {
-            await this.thread.send(`🙏 Miracle ! Personne n'est mort cette nuit.`);
-        }
-
-        if (!this.checkWinCondition()) {
-            const timerSecs = await this.getRoundTimer();
-            const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
-
-            // Dictateur : Hook Day
-            for (const p of this.players.values()) {
-                if (p.isAlive && p.role.onDay) await p.role.onDay(this, p, unixTimestamp);
+            // 5. Vérifier Protection du Garde / Ancien
+            if (victimId) {
+                const victimPlayer = this.players.get(victimId);
+                if (this.nightActions.guardTargetId === victimId) {
+                    this.logEvent(`Le Garde a protégé la cible des loups (**${victimPlayer.username}**).`);
+                    victimId = null; // Sauvé par le garde
+                } else if (victimPlayer && victimPlayer.role.id === 'elder' && victimPlayer.role.extraLife) {
+                    victimPlayer.role.extraLife = false;
+                    this.logEvent(`L'Ancien a survécu à l'attaque des loups.`);
+                    await this.thread.send(`👴 L'Ancien a survécu à une attaque fatale cette nuit !`);
+                    victimId = null;
+                }
             }
 
-            // Élection du Maire le premier matin
-            if (this.turn === 1 && !this.mayorId) {
-                await this.startMayorElection();
+            // 3. Traitement Sorcière
+            if (this.nightActions.witchAction) {
+                if (this.nightActions.witchAction.type === 'SAVE' && this.nightActions.witchAction.targetId === victimId) {
+                    victimId = null;
+                } else if (this.nightActions.witchAction.type === 'KILL' && this.nightActions.witchAction.targetId) {
+                    await this.applyDeath(this.nightActions.witchAction.targetId);
+                }
+            }
+
+            // 4. Appliquer la mort de la victime des loups
+            if (victimId) {
+                await this.applyDeath(victimId);
+            }
+
+            // 5. Liaison Cupid (Nuit 1)
+            if (this.turn === 1 && this.nightActions.cupidTargets.length === 2) {
+                const p1 = this.players.get(this.nightActions.cupidTargets[0]);
+                const p2 = this.players.get(this.nightActions.cupidTargets[1]);
+                if (p1 && p2) {
+                    p1.lover = p2.id;
+                    p2.lover = p1.id;
+                    try {
+                        const t1 = this.playerThreads.get(p1.id);
+                        const t2 = this.playerThreads.get(p2.id);
+                        if (t1) await t1.send(`💘 Tu es amoureux de **${p2.username}** ! Si l'un meurt, l'autre aussi.`);
+                        if (t2) await t2.send(`💘 Tu es amoureux de **${p1.username}** ! Si l'un meurt, l'autre aussi.`);
+                    } catch (e) {
+                        console.error(`[ERROR] Failed to send Lovers notification:`, e.message);
+                    }
+                }
+            }
+
+            await this.thread.send(`🌅 **Le soleil se lève sur le village...**`);
+
+            const alivePlayersEnd = Array.from(this.players.values());
+            const deadThisNight = alivePlayersEnd.filter(p => p.justDied);
+
+            if (deadThisNight.length > 0) {
+                for (const p of deadThisNight) {
+                    await this.thread.send(`💀 <@${p.id}> a été retrouvé sans vie. Il était **${p.role.name}**.`);
+                    p.justDied = false;
+                    this.lastDead = p; // Sauvegarde pour le Fossoyeur
+                }
             } else {
-                await this.startDay();
+                await this.thread.send(`🙏 Miracle ! Personne n'est mort cette nuit.`);
             }
+
+            if (!this.checkWinCondition()) {
+                const timerSecs = await this.getRoundTimer();
+                const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
+
+                // Dictateur : Hook Day
+                for (const p of this.players.values()) {
+                    if (p.isAlive && p.role.onDay) await p.role.onDay(this, p, unixTimestamp);
+                }
+
+                // Élection du Maire le premier matin
+                if (this.turn === 1 && !this.mayorId) {
+                    await this.startMayorElection();
+                } else {
+                    await this.startDay();
+                }
+            }
+        } catch (error) {
+            console.error("CRITICAL ERROR in handleNightResult:", error);
+            if (this.state === 'DAY') await this.startDay().catch(e => console.error("Recovery failed:", e));
         }
     }
 
@@ -709,10 +722,12 @@ class Game {
                 p.assignRole(player.role);
                 this.logEvent(`L'Héritier (**${p.username}**) a récupéré le rôle de **${player.role.name}**.`);
                 try {
-                    const user = await this.client.users.fetch(p.id);
-                    await user.send(`📜 Ton protecteur est mort. Tu hérites de son rôle : **${p.role.name}** !`);
+                    const heirThread = this.playerThreads.get(p.id);
+                    if (heirThread) {
+                        await heirThread.send(`📜 Ton protecteur est mort. Tu hérites de son rôle : **${p.role.name}** !`);
+                    }
                 } catch (e) {
-                    console.error(`[ERROR] Failed to send Heir DM to ${p.id}:`, e.message);
+                    console.error(`[ERROR] Failed to send Heir notification to ${p.id}:`, e.message);
                 }
                 break;
             }
@@ -724,10 +739,12 @@ class Game {
                 p.role.team = 'WEREWOLF';
                 this.logEvent(`L'Enfant Sauvage (**${p.username}**) est devenu un Loup.`);
                 try {
-                    const user = await this.client.users.fetch(p.id);
-                    await user.send("🏹 **Ton modèle est mort.** La haine t'envahit... Tu es désormais un Loup-Garou !");
+                    const wildThread = this.playerThreads.get(p.id);
+                    if (wildThread) {
+                        await wildThread.send("🏹 **Ton modèle est mort.** La haine t'envahit... Tu es désormais un Loup-Garou !");
+                    }
                 } catch (e) {
-                    console.error(`[ERROR] Failed to send Wild Child DM to ${p.id}:`, e.message);
+                    console.error(`[ERROR] Failed to send Wild Child notification to ${p.id}:`, e.message);
                 }
                 await this.thread.send("🏹 L'Enfant Sauvage a perdu son guide et a rejoint les loups...");
             }
@@ -817,39 +834,70 @@ class Game {
 
     startTimer(seconds, callback) {
         if (this.timer) clearTimeout(this.timer);
+        if (this.timerUpdate) clearInterval(this.timerUpdate);
+
         this.timerEnd = Date.now() + (seconds * 1000);
 
         this.timer = setTimeout(async () => {
+            this.clearTimers();
             await callback();
         }, seconds * 1000);
 
-        // Mise à jour visuelle périodique (fallback)
+        // Mise à jour visuelle périodique (toutes les 5s pour éviter le rate limit)
         this.timerUpdate = setInterval(async () => {
             const remaining = Math.round((this.timerEnd - Date.now()) / 1000);
 
             if (remaining <= 0) {
                 clearInterval(this.timerUpdate);
-                if (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION') {
-                    await this.thread.send("⌛ **Temps écoulé !** Analyse des votes en cours...").catch(() => { });
-                } else if (this.state === 'NIGHT') {
-                    await this.thread.send("⌛ **La nuit touche à sa fin...** Le village se réveille.").catch(() => { });
-                }
                 return;
             }
 
-            // Update messages to show text countdown if dynamic timestamp is not enough
+            const unixTimestamp = Math.floor(this.timerEnd / 1000);
+
+            // 1. Update Voting Message (Village/Maire/Dictateur)
             if (this.votingMessage && (this.state === 'DAY_VOTING' || this.state === 'MAYOR_ELECTION' || this.state === 'DICTATOR_VOTING')) {
-                const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
-                const unixTimestamp = Math.floor(this.timerEnd / 1000);
-                embed.setDescription(`Il est temps de décider !\n\n⏱️ **Temps restant :** \`${remaining}s\` (<t:${unixTimestamp}:R>)`);
-                await this.votingMessage.edit({ embeds: [embed] }).catch(() => { });
+                try {
+                    const embed = EmbedBuilder.from(this.votingMessage.embeds[0]);
+                    const desc = embed.data.description;
+                    if (desc) {
+                        const newDesc = desc.replace(/⏱️ \*\*Fin (?:de l'élection|du vote) :\*\* <t:\d+:R>/, `⏱️ **Fin de la décision :** <t:${unixTimestamp}:R> (en ligne \`${remaining}s\`)`);
+                        if (newDesc !== desc) {
+                            await this.votingMessage.edit({ embeds: [embed.setDescription(newDesc)] }).catch(() => { });
+                        }
+                    }
+                } catch (e) { }
             }
 
+            // 2. Update Night Message
             if (this.nightMessage && this.state === 'NIGHT') {
-                const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
-                const unixTimestamp = Math.floor(this.timerEnd / 1000);
-                embed.setDescription(`Le village s'endort...\n\n⏱️ **Temps restant :** \`${remaining}s\` (<t:${unixTimestamp}:R>)`);
-                await this.nightMessage.edit({ embeds: [embed] }).catch(() => { });
+                try {
+                    const embed = EmbedBuilder.from(this.nightMessage.embeds[0]);
+                    const desc = embed.data.description;
+                    if (desc) {
+                        const newDesc = desc.replace(/⏱️ \*\*Fin de la nuit :\*\* <t:\d+:R>/, `⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
+                        if (newDesc !== desc) {
+                            await this.nightMessage.edit({ embeds: [embed.setDescription(newDesc)] }).catch(() => { });
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            // 3. Update Private Role Action Messages
+            for (const [userId, msg] of this.roleActionMessages.entries()) {
+                try {
+                    if (msg.embeds && msg.embeds[0]) {
+                        const embed = EmbedBuilder.from(msg.embeds[0]);
+                        const desc = embed.data.description;
+                        if (desc) {
+                            const newDesc = desc.replace(/⏱️ \*\*Fin de la nuit :\*\* <t:\d+:R>/, `⏱️ **Fin de la nuit :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
+                            const finalDesc = newDesc.replace(/⏱️ \*\*Fin de la décision :\*\* <t:\d+:R>/, `⏱️ **Fin de la décision :** <t:${unixTimestamp}:R> (\`${remaining}s\`)`);
+
+                            if (finalDesc !== desc) {
+                                await msg.edit({ embeds: [embed.setDescription(finalDesc)] }).catch(() => { });
+                            }
+                        }
+                    }
+                } catch (e) { }
             }
         }, 5000);
     }

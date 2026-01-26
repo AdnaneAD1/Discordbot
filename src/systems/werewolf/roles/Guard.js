@@ -26,7 +26,7 @@ class Guard extends Role {
         const row = new ActionRowBuilder().addComponents(select);
 
         try {
-            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Guard action to ${player.id}`, e);
         }

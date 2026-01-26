@@ -26,33 +26,33 @@ module.exports = {
 
         if (subcommand === 'create') {
             if (manager.getGame(interaction.channel.id)) {
-                return interaction.reply({ content: '❌ Une partie est déjà en cours dans ce salon !', ephemeral: true });
+                return interaction.reply({ content: '❌ Une partie est déjà en cours dans ce salon !', flags: [64] });
             }
             const game = manager.createGame(interaction.channel, interaction.user);
             await game.startLobby();
-            return interaction.reply({ content: '🏡 Lobby créé !', ephemeral: true });
+            return interaction.reply({ content: '🏡 Lobby créé !', flags: [64] });
         }
 
         const game = manager.getGame(interaction.channel.id);
         if (!game) {
-            return interaction.reply({ content: '❌ Aucune partie en cours ici.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucune partie en cours ici.', flags: [64] });
         }
 
         if (subcommand === 'start') {
             if (interaction.user.id !== game.host.id) {
-                return interaction.reply({ content: '❌ Seul l\'hôte peut lancer la partie.', ephemeral: true });
+                return interaction.reply({ content: '❌ Seul l\'hôte peut lancer la partie.', flags: [64] });
             }
             await game.start();
-            return interaction.reply({ content: '🚀 Lancement...', ephemeral: true });
+            return interaction.reply({ content: '🚀 Lancement...', flags: [64] });
         }
 
         if (subcommand === 'stop') {
             // Admin ou Host
             if (interaction.user.id !== game.host.id && !interaction.member.permissions.has('Administrator')) {
-                return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
+                return interaction.reply({ content: '❌ Permission refusée.', flags: [64] });
             }
             game.stop();
-            return interaction.reply({ content: '🛑 Partie arrêtée.', ephemeral: true });
+            return interaction.reply({ content: '🛑 Partie arrêtée.', flags: [64] });
         }
     }
 };

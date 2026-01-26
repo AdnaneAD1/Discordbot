@@ -5,13 +5,12 @@ class Gravedigger extends Role {
         super('gravedigger', 'Fossoyeur', '⚰️', 'Chaque nuit, vous découvrez si le mort de la veille était un Villageois ou un Loup.', 'VILLAGE');
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp, thread) {
         if (!game.lastDead) return;
 
         try {
-            const user = await game.client.users.fetch(player.id);
             const teamMsg = game.lastDead.role.team === 'WEREWOLF' ? 'un **Loup-Garou** 🐺' : 'un **Villageois** 🛖';
-            await user.send(`⚰️ Tes fouilles révèlent que le dernier mort (<@${game.lastDead.id}>) était ${teamMsg}.`);
+            return await thread.send(`⚰️ Tes fouilles révèlent que le dernier mort (<@${game.lastDead.id}>) était ${teamMsg}.`);
         } catch (e) {
             console.error(`Failed to send Gravedigger info to ${player.id}`, e);
         }

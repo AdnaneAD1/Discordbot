@@ -6,9 +6,12 @@ class Mentalist extends Role {
         super('mentalist', 'Mentaliste', '🧠', 'Chaque nuit, vous analysez l\'atmosphère. Vous découvrez si le vote des loups était "divisé" ou "unanime".', 'VILLAGE');
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp, thread) {
         // En réalité, le mentaliste reçoit l'info au matin ou par MP après le vote des loups.
-        // Ici, on va juste préparer le terrain. L'info sera envoyée dans handleNightResult.
+        if (game.turn > 0 && game.isWolfUnanimous !== undefined) {
+            const status = game.isWolfUnanimous ? '**UNANIME** ✅' : '**DIVISÉ** ❌';
+            return await thread.send(`🧠 Ton analyse mentale révèle que le vote des loups cette nuit était : ${status}`);
+        }
     }
 }
 

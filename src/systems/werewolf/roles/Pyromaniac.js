@@ -29,7 +29,7 @@ class Pyromaniac extends Role {
         );
 
         try {
-            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Pyromaniac action to ${player.id}`, e);
         }

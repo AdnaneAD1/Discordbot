@@ -46,7 +46,7 @@ class Witch extends Role {
         );
 
         try {
-            await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
+            return await thread.send({ content: `<@${player.id}>`, embeds: [embed], components: [row] });
         } catch (e) {
             console.error(`Failed to send Witch action to ${player.id}`, e);
         }

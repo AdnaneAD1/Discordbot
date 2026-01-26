@@ -49,7 +49,7 @@ module.exports = {
         // Validation du prompt
         const validation = validatePrompt(prompt);
         if (!validation.valid) {
-            return interaction.reply({ content: validation.error, ephemeral: true });
+            return interaction.reply({ content: validation.error, flags: [64] });
         }
 
         // Vérification du cooldown
@@ -57,7 +57,7 @@ module.exports = {
         if (!cooldownCheck.allowed) {
             return interaction.reply({
                 content: `⏱️ Tu as atteint la limite de 5 images par jour.\nRéessaye dans **${cooldownCheck.resetIn} heure(s)**.`,
-                ephemeral: true
+                flags: [64]
             });
         }
 
