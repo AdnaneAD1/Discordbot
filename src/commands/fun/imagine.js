@@ -155,7 +155,16 @@ async function generateImage(prompt, userId) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+            const apiError = errorData.error;
+            let msg = `HTTP ${response.status}: ${response.statusText}`;
+
+            if (typeof apiError === 'string') {
+                msg = apiError;
+            } else if (apiError && typeof apiError === 'object') {
+                msg = apiError.message || JSON.stringify(apiError);
+            }
+
+            throw new Error(msg);
         }
 
         const result = await response.json();
@@ -182,9 +191,10 @@ async function generateImage(prompt, userId) {
         // Décoder le message d'erreur
         let errorMessage = error.message || error.toString();
 
-        // Si l'erreur est un objet, essayer de l'extraire
-        if (typeof error === 'object' && error !== null) {
-            errorMessage = error.message || JSON.stringify(error);
+        // Si l'erreur est un objet (et pas une instance de Error avec un vrai message)
+        // ou si le message est le fameux "[object Object]"
+        if (errorMessage === '[object Object]' || (typeof error === 'object' && error !== null && !(error instanceof Error))) {
+            errorMessage = JSON.stringify(error);
         }
 
         console.error('Erreur génération image:', error);
