@@ -180,9 +180,14 @@ async function generateImage(prompt, userId) {
         return filepath;
     } catch (error) {
         // Décoder le message d'erreur
-        let errorMessage = error.message;
+        let errorMessage = error.message || error.toString();
 
-        console.error('Erreur génération image:', errorMessage);
+        // Si l'erreur est un objet, essayer de l'extraire
+        if (typeof error === 'object' && error !== null) {
+            errorMessage = error.message || JSON.stringify(error);
+        }
+
+        console.error('Erreur génération image:', error);
 
         // Si c'est une erreur d'authentification
         if (errorMessage.includes('401') || errorMessage.includes('Invalid token')) {
