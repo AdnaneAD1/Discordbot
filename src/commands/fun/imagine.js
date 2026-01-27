@@ -138,7 +138,8 @@ async function generateImage(prompt, userId) {
             throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
         }
 
-        const API_URL = 'https://router.huggingface.co/nscale/v1/images/generations';
+        // Nouveau point de terminaison recommandé
+        const API_URL = 'https://router.huggingface.co/fal-ai/fal-ai/flux/dev?_subdomain=queue';
 
         const response = await fetch(API_URL, {
             headers: {
@@ -147,35 +148,33 @@ async function generateImage(prompt, userId) {
             },
             method: 'POST',
             body: JSON.stringify({
-                prompt: prompt,
-                model: 'black-forest-labs/FLUX.1-dev',
-                response_format: 'b64_json'
+                prompt: prompt
             })
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            const apiError = errorData.error;
-            let msg = `HTTP ${response.status}: ${response.statusText}`;
-
-            if (typeof apiError === 'string') {
-                msg = apiError;
-            } else if (apiError && typeof apiError === 'object') {
-                msg = apiError.message || JSON.stringify(apiError);
+            let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                const apiError = errorData.error;
+                if (typeof apiError === 'string') {
+                    errorMsg = apiError;
+                } else if (apiError && typeof apiError === 'object') {
+                    errorMsg = apiError.message || JSON.stringify(apiError);
+                }
+            } catch (e) {
+                // Si la réponse n'est pas du JSON, on garde le message par défaut
             }
-
-            throw new Error(msg);
+            throw new Error(errorMsg);
         }
 
-        const result = await response.json();
-
-        // Décoder l'image base64
-        const imageData = result.data?.[0]?.b64_json;
-        if (!imageData) {
-            throw new Error('Aucune image générée dans la réponse');
+        // Récupérer l'image en binaire (car cet endpoint renvoie directement l'image)
+        const arrayBuffer = await response.arrayBuffer();
+        if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+            throw new Error('L\'API n\'a renvoyé aucune donnée d\'image');
         }
 
-        const imageBuffer = Buffer.from(imageData, 'base64');
+        const imageBuffer = Buffer.from(arrayBuffer);
 
         // Sauvegarder l'image temporairement
         const tempDir = path.join(__dirname, '..', '..', 'temp');
