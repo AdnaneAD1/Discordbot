@@ -6,6 +6,10 @@ class WildChild extends Role {
         this.modelId = null;
     }
 
+    get name() {
+        return this.team === 'WEREWOLF' ? 'Loup-Garou (Enfant Sauvage)' : 'Enfant Sauvage';
+    }
+
     async onNight(game, player, unixTimestamp, thread) {
         if (game.turn === 1 && !this.modelId) {
             const alivePlayers = Array.from(game.players.values()).filter(p => p.id !== player.id);

@@ -616,7 +616,7 @@ class Game {
                 await this.thread.send(`🙏 Miracle ! Personne n'est mort cette nuit.`);
             }
 
-            if (!this.checkWinCondition()) {
+            if (!(await this.checkWinCondition())) {
                 const timerSecs = await this.getRoundTimer();
                 const unixTimestamp = Math.floor((Date.now() + (timerSecs * 1000)) / 1000);
 
@@ -850,6 +850,71 @@ class Game {
         if (this.timerUpdate) clearInterval(this.timerUpdate);
     }
 
+    async checkWinCondition() {
+        const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive);
+        const wolves = alivePlayers.filter(p => p.role.team === 'WEREWOLF');
+        const villagers = alivePlayers.filter(p => p.role.team === 'VILLAGE');
+        const whiteWolf = alivePlayers.find(p => p.role.id === 'white_werewolf');
+        const pyro = alivePlayers.find(p => p.role.id === 'pyromaniac');
+
+        // 1. Victoire du Couple (Priorité)
+        if (alivePlayers.length === 2) {
+            const p1 = alivePlayers[0];
+            const p2 = alivePlayers[1];
+            if (p1.lover === p2.id) {
+                await this.thread.send('💘 **VICTOIRE DU COUPLE !** L\'amour a triomphé du chaos.');
+                const journalEmbed = await this.generateJournal('Victoire du Couple 💖');
+                await this.thread.send({ embeds: [journalEmbed] });
+                this.manager.endGame(this.channel.id);
+                this.cleanupThreads(60000);
+                return true;
+            }
+        }
+
+        // 2. Victoire du Pyromane
+        if (pyro && alivePlayers.length <= 2 && !whiteWolf && wolves.length === 0) {
+            await this.thread.send('🔥 **VICTOIRE DU PYROMANE !** Il a réduit le village en cendres et rit seul au milieu des ruines.');
+            const journalEmbed = await this.generateJournal('Victoire du Pyromane');
+            await this.thread.send({ embeds: [journalEmbed] });
+            this.manager.endGame(this.channel.id);
+            this.cleanupThreads(60000);
+            return true;
+        }
+
+        // 3. Victoire du Loup Blanc
+        if (whiteWolf && alivePlayers.length <= 2 && wolves.length === 0) {
+            await this.thread.send('⚪ **VICTOIRE DU LOUP BLANC !** Il a dévoré tout le monde, même ses semblables.');
+            const journalEmbed = await this.generateJournal('Victoire du Loup Blanc');
+            await this.thread.send({ embeds: [journalEmbed] });
+            this.manager.endGame(this.channel.id);
+            this.cleanupThreads(60000);
+            return true;
+        }
+
+        // 4. Victoire du Village
+        if (wolves.length === 0 && !whiteWolf && !pyro) {
+            await this.thread.send('🎉 **VICTOIRE DU VILLAGE !** Tous les loups et menaces ont été éliminés.');
+            const journalEmbed = await this.generateJournal('Victoire du Village');
+            await this.thread.send({ embeds: [journalEmbed] });
+            this.manager.endGame(this.channel.id);
+            this.cleanupThreads(60000);
+            return true;
+        }
+
+        // 5. Victoire des Loups
+        if ((wolves.length + (whiteWolf ? 1 : 0)) >= villagers.length && !pyro) {
+            if (!whiteWolf || (whiteWolf && wolves.length > 0)) {
+                await this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
+                const journalEmbed = await this.generateJournal('Victoire des Loups');
+                await this.thread.send({ embeds: [journalEmbed] });
+                this.manager.endGame(this.channel.id);
+                this.cleanupThreads(60000);
+                return true;
+            }
+        }
+        return false;
+    }
+
     async handleVillageVoteResult() {
         if (this.state !== 'DAY_VOTING') return;
         this.clearTimers();
@@ -917,7 +982,12 @@ class Game {
         // Reveal all roles
         let revelation = "";
         for (const p of this.players.values()) {
-            revelation += `${p.isAlive ? '✅' : '💀'} <@${p.id}> : **${p.role.name}**\n`;
+            let status = `${p.isAlive ? '✅' : '💀'} <@${p.id}> : **${p.role.name}**`;
+            if (p.lover) {
+                const lover = this.players.get(p.lover);
+                status += ` 💘 (Amoureux de **${lover?.username || '?'}**)`;
+            }
+            revelation += status + '\n';
         }
         embed.addFields({ name: '🎭 Révélation des rôles', value: revelation });
 

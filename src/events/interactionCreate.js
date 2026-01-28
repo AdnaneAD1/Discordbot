@@ -427,10 +427,28 @@ module.exports = {
                         await interaction.reply({ content: `🖤 Tu as décidé de ne pas utiliser ton pouvoir ce soir.`, flags: [64] });
                     }
                     await game.checkNightEnd();
+                } else if (customId === 'lg_heir_action') {
+                    const player = game.players.get(interaction.user.id);
+                    if (player) player.role.targetId = values[0];
+                    await interaction.reply({ content: `📜 Tes volontés sont scellées. Ton protecteur est <@${values[0]}>.`, flags: [64] });
+                    await game.checkNightEnd();
                 } else if (customId === 'lg_wild_child_action') {
                     const player = game.players.get(interaction.user.id);
                     if (player) player.role.modelId = values[0];
                     await interaction.reply({ content: `🏹 Ton modèle est désormais <@${values[0]}>.`, flags: [64] });
+                    await game.checkNightEnd();
+                } else if (customId === 'lg_pyro_gas_menu') {
+                    const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
+                    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+                    const select = new StringSelectMenuBuilder()
+                        .setCustomId('lg_pyro_gas_select')
+                        .setPlaceholder('Choisir jusqu\'à 2 victimes')
+                        .setMinValues(1).setMaxValues(Math.min(2, alivePlayers.length))
+                        .addOptions(alivePlayers.map(p => ({ label: p.username, value: p.id })));
+                    await interaction.reply({ content: '🧴 Qui voulez-vous gazer ?', components: [new ActionRowBuilder().addComponents(select)], flags: [64] });
+                } else if (customId === 'lg_pyro_burn') {
+                    game.nightActions.pyroAction = 'BURN';
+                    await interaction.reply({ content: '🔥 **L\'INCENDIE SERA DÉCLENCHÉ CETTE NUIT !**', flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_pyro_gas_select') {
                     game.nightActions.pyroGasTargetIds = values;
@@ -445,6 +463,24 @@ module.exports = {
                     if (game.state === 'DAY_VOTING' || game.state === 'NIGHT') {
                         await game.checkWinCondition();
                     }
+                } else if (customId === 'lg_witch_save') {
+                    game.nightActions.witchAction = { type: 'SAVE', targetId: game.nightActions.wolfTargetId };
+                    const role = game.players.get(interaction.user.id).role;
+                    role.hasLifePotion = false;
+                    await interaction.reply({ content: '🧪 Tu as utilisé ta potion de vie !', flags: [64] });
+                    await game.checkNightEnd();
+                } else if (customId === 'lg_witch_kill') {
+                    const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
+                    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+                    const select = new StringSelectMenuBuilder()
+                        .setCustomId('lg_witch_kill_target')
+                        .setPlaceholder('Choisir une victime')
+                        .addOptions(alivePlayers.map(p => ({ label: p.username, value: p.id })));
+                    await interaction.reply({ content: '🧪 Qui voulez-vous empoisonner ?', components: [new ActionRowBuilder().addComponents(select)], flags: [64] });
+                } else if (customId === 'lg_witch_skip') {
+                    game.nightActions.witchAction = { type: 'SKIP' };
+                    await interaction.reply({ content: '🧪 Tu as décidé de ne pas agir.', flags: [64] });
+                    await game.checkNightEnd();
                 } else if (customId === 'lg_witch_kill_target') {
                     const victimId = values[0];
                     game.nightActions.witchAction = { type: 'KILL', targetId: victimId };
