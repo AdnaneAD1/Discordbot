@@ -236,7 +236,7 @@ async function playTrack(player, track) {
 }
 
 /**
- * Recherche des pistes
+ * Recherche des pistes (Gère Lavalink v4)
  */
 async function search(query, requester) {
     const node = shoukaku.getIdealNode();
@@ -244,21 +244,40 @@ async function search(query, requester) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
-    // Utiliser getSearchQuery pour détecter automatiquement les URLs ou les préfixes existants (spsearch:, etc.)
     const searchQuery = getSearchQuery(query);
 
     const result = await node.rest.resolve(searchQuery);
+
+    // En v4, loadType peut être: 'track', 'playlist', 'search', 'empty', 'error'
     if (!result || result.loadType === 'empty' || result.loadType === 'error') {
-        return null;
+        return { loadType: result?.loadType || 'empty', tracks: [] };
     }
 
-    const tracks = result.loadType === 'playlist' ? result.data.tracks : result.data;
+    let tracks = [];
+    let playlistInfo = null;
+
+    if (result.loadType === 'playlist') {
+        tracks = result.data.tracks;
+        playlistInfo = result.data.info;
+    } else if (result.loadType === 'track') {
+        // En v4, 'track' retourne un objet track unique, pas un tableau
+        tracks = [result.data];
+    } else if (result.loadType === 'search') {
+        // 'search' retourne un tableau de tracks
+        tracks = result.data;
+    }
 
     // Ajouter le requester à chaque piste
-    return tracks.map(track => ({
+    const formattedTracks = tracks.map(track => ({
         ...track,
         requester
     }));
+
+    return {
+        loadType: result.loadType,
+        tracks: formattedTracks,
+        playlistInfo
+    };
 }
 
 /**

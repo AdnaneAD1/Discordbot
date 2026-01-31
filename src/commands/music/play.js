@@ -29,7 +29,8 @@ module.exports = {
 
         try {
             // Rechercher la piste
-            const tracks = await search(query, interaction.user);
+            const result = await search(query, interaction.user);
+            const { loadType, tracks, playlistInfo } = result;
 
             if (!tracks || tracks.length === 0) {
                 return interaction.editReply('❌ Aucun résultat trouvé.');
@@ -39,16 +40,33 @@ module.exports = {
             const player = await getPlayer(interaction.guild.id, voiceChannel.id);
             player.textChannel = interaction.channel;
 
-            const track = tracks[0];
+            if (loadType === 'playlist') {
+                // Ajouter toutes les pistes de la playlist
+                for (const track of tracks) {
+                    player.addTrack(track);
+                }
 
-            // Si rien ne joue, jouer directement
-            if (!player.current) {
-                await playTrack(player, track);
-                return interaction.editReply(`🎵 **Lecture en cours :** ${track.info.title}`);
+                // Si rien ne joue, lancer la première
+                if (!player.current) {
+                    const firstTrack = player.nextTrack();
+                    if (firstTrack) {
+                        await playTrack(player, firstTrack);
+                    }
+                }
+
+                return interaction.editReply(`📂 **Playlist ajoutée :** ${playlistInfo?.name || 'Inconnue'} (${tracks.length} morceaux)`);
             } else {
-                // Sinon ajouter à la queue
-                player.addTrack(track);
-                return interaction.editReply(`✅ Ajouté à la file (position ${player.queue.length}) : **${track.info.title}**`);
+                const track = tracks[0];
+
+                // Si rien ne joue, jouer directement
+                if (!player.current) {
+                    await playTrack(player, track);
+                    return interaction.editReply(`🎵 **Lecture en cours :** ${track.info.title}`);
+                } else {
+                    // Sinon ajouter à la queue
+                    player.addTrack(track);
+                    return interaction.editReply(`✅ Ajouté à la file (position ${player.queue.length}) : **${track.info.title}**`);
+                }
             }
         } catch (error) {
             console.error('[Play Command Error]', error);
