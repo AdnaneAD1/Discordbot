@@ -74,8 +74,8 @@ module.exports = {
                 const { handleEntry } = require('../systems/giveaways');
                 await handleEntry(interaction);
             } else if (customId.startsWith('music_')) {
-                const { kazagumo } = interaction.client;
-                const player = kazagumo.players.get(interaction.guild.id);
+                const { getExistingPlayer, destroyPlayer, handleVoteSkip } = require('../services/music');
+                const player = getExistingPlayer(interaction.guild.id);
 
                 if (!player) return interaction.reply({ content: '❌ Plus de musique en cours.', flags: [64] });
 
@@ -83,50 +83,50 @@ module.exports = {
 
                 switch (action) {
                     case 'back':
-                        if (!player.queue.previous) return interaction.reply({ content: '❌ Pas de morceau précédent.', flags: [64] });
-                        player.queue.unshift(player.queue.previous);
-                        player.skip();
-                        await interaction.reply({ content: '⏪ Retour au morceau précédent !' });
+                        // Dans Shoukaku v4, on redémarre le morceau actuel
+                        player.connection.seekTo(0);
+                        await interaction.reply({ content: '⏪ Morceau redémarré depuis le début !' });
                         break;
                     case 'loop':
-                        // Kazagumo loop modes: 'none', 'track', 'queue'
+                        // Modes: 'none', 'track', 'queue'
                         let newLoop = 'none';
                         if (player.loop === 'none') newLoop = 'track';
                         else if (player.loop === 'track') newLoop = 'queue';
 
-                        player.setLoop(newLoop);
+                        player.loop = newLoop;
                         const loopMessages = { 'none': 'désactivée', 'track': 'du morceau actuel', 'queue': 'de la file d\'attente' };
                         await interaction.reply({ content: `🔁 Répétition **${loopMessages[newLoop]}** !` });
                         break;
                     case 'pause':
-                        player.pause(!player.paused);
-                        await interaction.reply({ content: player.paused ? '⏸️ Musique en pause' : '▶️ Musique reprise' });
+                        const isPaused = player.connection.paused;
+                        player.connection.setPaused(!isPaused);
+                        await interaction.reply({ content: !isPaused ? '⏸️ Musique en pause' : '▶️ Musique reprise' });
                         break;
                     case 'stop':
-                        player.destroy();
+                        destroyPlayer(interaction.guild.id);
                         await interaction.reply({ content: '⏹️ Musique arrêtée et file nettoyée.' });
                         break;
                     case 'skip':
-                        player.skip();
+                        player.connection.stopTrack();
                         await interaction.reply({ content: '⏭️ Morceau suivant !' });
                         break;
                     case 'queue':
+                        const currentTrack = player.current;
                         const queue = player.queue;
-                        const currentTrack = player.queue.current;
 
                         const qEmbed = new EmbedBuilder()
                             .setColor('#febc11')
                             .setTitle(`🎶 File d'attente - ${interaction.guild.name}`)
-                            .setThumbnail(currentTrack?.thumbnail || null);
+                            .setThumbnail(currentTrack?.info?.artworkUrl || null);
 
-                        let qDescription = `**En cours :**\n[${currentTrack.title}](${currentTrack.uri}) - \`${formatTime(currentTrack.length)}\`\n\n`;
+                        let qDescription = currentTrack ? `**En cours :**\n[${currentTrack.info.title}](${currentTrack.info.uri}) - \`${formatTime(currentTrack.info.length)}\`\n\n` : '';
 
                         if (queue.length === 0) {
                             qDescription += "*La file d'attente est vide.*";
                         } else {
                             qDescription += "**À venir :**\n";
                             const tracks = queue.slice(0, 10).map((track, index) => {
-                                return `**${index + 1}.** [${track.title}](${track.uri}) - \`${formatTime(track.length)}\``;
+                                return `**${index + 1}.** [${track.info.title}](${track.info.uri}) - \`${formatTime(track.info.length)}\``;
                             });
 
                             qDescription += tracks.join('\n');
@@ -136,8 +136,8 @@ module.exports = {
                             }
                         }
 
-                        const totalDuration = (currentTrack ? (currentTrack.length || 0) : 0) + queue.reduce((acc, track) => acc + (track.length || 0), 0);
-                        qDescription += `\n\n**Total :** \`${queue.length + 1}\` morceau(x) | **Durée totale :** \`${formatTime(totalDuration)}\``;
+                        const totalDuration = (currentTrack ? (currentTrack.info.length || 0) : 0) + queue.reduce((acc, track) => acc + (track.info?.length || 0), 0);
+                        qDescription += `\n\n**Total :** \`${queue.length + (currentTrack ? 1 : 0)}\` morceau(x) | **Durée totale :** \`${formatTime(totalDuration)}\``;
 
                         qEmbed.setDescription(qDescription);
 
@@ -145,14 +145,13 @@ module.exports = {
                         break;
 
                     case 'voteskip':
-                        const { handleVoteSkip } = require('../services/music');
-                        const voiceChannel = interaction.member.voice.channel;
+                        const vChannel = interaction.member.voice.channel;
 
-                        if (!voiceChannel) {
+                        if (!vChannel) {
                             return interaction.reply({ content: '❌ Tu dois être dans un salon vocal.', flags: [64] });
                         }
 
-                        const voteResult = handleVoteSkip(player, interaction.user.id, voiceChannel);
+                        const voteResult = handleVoteSkip(player, interaction.user.id, vChannel);
 
                         if (!voteResult.success) {
                             return interaction.reply({ content: `❌ ${voteResult.error}`, flags: [64] });
@@ -170,19 +169,8 @@ module.exports = {
                             return interaction.reply({ content: '❌ Pas assez de morceaux dans la file pour mélanger.', flags: [64] });
                         }
 
-                        // Mélanger la queue (Fisher-Yates shuffle)
-                        const queueArray = [...player.queue];
-                        for (let i = queueArray.length - 1; i > 0; i--) {
-                            const j = Math.floor(Math.random() * (i + 1));
-                            [queueArray[i], queueArray[j]] = [queueArray[j], queueArray[i]];
-                        }
-
-                        player.queue.clear();
-                        for (const track of queueArray) {
-                            player.queue.add(track);
-                        }
-
-                        await interaction.reply({ content: `🔀 File d'attente mélangée ! (${queueArray.length} morceaux)` });
+                        player.shuffle();
+                        await interaction.reply({ content: `🔀 File d'attente mélangée ! (${player.queue.length} morceaux)` });
                         break;
                 }
             } else if (customId.startsWith('lg_')) {
