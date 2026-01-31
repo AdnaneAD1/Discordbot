@@ -192,7 +192,7 @@ async function playTrack(player, track) {
     player.current = track;
     player.skipVotes = new Set();
 
-    await player.connection.playTrack({ track: track.encoded });
+    await player.connection.playTrack({ track: { encoded: track.encoded } });
 
     // Envoyer l'embed "En lecture"
     if (player.textChannel) {
@@ -244,8 +244,8 @@ async function search(query, requester) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
-    // Ajouter le préfixe de recherche si ce n'est pas une URL
-    const searchQuery = query.startsWith('http') ? query : `ytsearch:${query}`;
+    // Utiliser getSearchQuery pour détecter automatiquement les URLs ou les préfixes existants (spsearch:, etc.)
+    const searchQuery = getSearchQuery(query);
 
     const result = await node.rest.resolve(searchQuery);
     if (!result || result.loadType === 'empty' || result.loadType === 'error') {
