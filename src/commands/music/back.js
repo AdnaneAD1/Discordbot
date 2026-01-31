@@ -12,15 +12,12 @@ module.exports = {
             return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', ephemeral: true });
         }
 
-        // Note: Dans Shoukaku v4, on n'a pas de "previous" par défaut.
-        // On rejoue simplement le morceau actuel depuis le début.
-        if (!player.current) {
-            return interaction.reply({ content: '❌ Il n\'y a pas de morceau à rejouer.', ephemeral: true });
+        const prevTrack = player.previousTrack();
+        if (!prevTrack) {
+            return interaction.reply({ content: '❌ Pas de morceau précédent dans l\'historique.', ephemeral: true });
         }
 
-        // Redémarrer le morceau actuel depuis le début
-        player.connection.seekTo(0);
-
-        return interaction.reply({ content: '⏪ Morceau redémarré depuis le début !' });
+        await playTrack(player, prevTrack);
+        return interaction.reply({ content: '⏪ Retour au morceau précédent !' });
     },
 };

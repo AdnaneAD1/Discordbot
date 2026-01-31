@@ -4,19 +4,34 @@ const { db } = require('../services/firebase');
 module.exports = {
     name: Events.GuildMemberAdd,
     async execute(member) {
+        // S'assurer que le membre est complet (gestion des Partials)
+        if (member.partial) {
+            try {
+                member = await member.fetch();
+            } catch (error) {
+                console.error('Erreur lors du fetch du membre:', error);
+            }
+        }
+
         console.log(`New member joined: ${member.user.tag}`);
 
         // Fetch config from Firebase
         const guildId = member.guild.id;
         const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
 
-        const config = (await guildConfigRef.doc('channels').get()).data();
-        const roles = (await guildConfigRef.doc('roles').get()).data();
-        const general = (await guildConfigRef.doc('general').get()).data() || {};
+        // Récupérer les configs en parallèle pour plus de rapidité
+        const [configDoc, rolesDoc, generalDoc] = await Promise.all([
+            guildConfigRef.doc('channels').get(),
+            guildConfigRef.doc('roles').get(),
+            guildConfigRef.doc('general').get()
+        ]);
+
+        const config = configDoc.data();
+        const roles = rolesDoc.data();
+        const general = generalDoc.data() || {};
 
         const embedColor = general.embedColor || '#0099ff';
         const serverName = general.serverName || 'Mister A';
-        const logoUrl = general.logoUrl || null;
 
         // Assign "Novice" role if exists
         if (roles && roles.defaultRoleId) {
@@ -35,11 +50,14 @@ module.exports = {
 
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor(embedColor)
-                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, ${member} !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
+                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, <@${member.id}> !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
                     .setTimestamp();
 
-                channel.send({ embeds: [welcomeEmbed] });
+                // Petite attente pour laisser au client Discord le temps de résoudre la mention
+                setTimeout(() => {
+                    channel.send({ embeds: [welcomeEmbed] }).catch(console.error);
+                }, 1500);
             }
         }
     },

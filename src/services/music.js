@@ -53,6 +53,7 @@ class MusicPlayer {
         this.guildId = guildId;
         this.connection = connection;
         this.queue = [];
+        this.history = []; // Stockage des morceaux déjà joués
         this.current = null;
         this.loop = 'none'; // 'none', 'track', 'queue'
         this.volume = 100;
@@ -66,6 +67,12 @@ class MusicPlayer {
     }
 
     nextTrack() {
+        if (this.current && this.loop !== 'track') {
+            this.history.push(this.current);
+            // Limiter l'historique aux 50 derniers morceaux
+            if (this.history.length > 50) this.history.shift();
+        }
+
         if (this.loop === 'track' && this.current) {
             return this.current;
         }
@@ -73,6 +80,19 @@ class MusicPlayer {
             this.queue.push(this.current);
         }
         this.current = this.queue.shift() || null;
+        return this.current;
+    }
+
+    previousTrack() {
+        if (this.history.length === 0) return null;
+
+        // Si quelque chose joue, on le remet en début de queue
+        if (this.current) {
+            this.queue.unshift(this.current);
+        }
+
+        // On récupère le dernier morceau de l'historique
+        this.current = this.history.pop();
         return this.current;
     }
 
@@ -174,12 +194,14 @@ async function getPlayer(guildId, channelId) {
         }
     });
 
-    connection.on('closed', () => {
+    // Gérer la déconnexion
+    connection.on('closed', (data) => {
+        console.warn(`⚠️ Connexion vocale fermée pour ${guildId}:`, data.reason);
         destroyPlayer(guildId);
     });
 
     connection.on('error', (error) => {
-        console.error(`Erreur player ${guildId}:`, error);
+        console.error(`❌ Erreur player ${guildId}:`, error);
     });
 
     return player;
@@ -289,7 +311,6 @@ function destroyPlayer(guildId) {
         if (player.nowPlayingMessage) {
             player.nowPlayingMessage.delete().catch(() => { });
         }
-        player.connection.disconnect();
         players.delete(guildId);
     }
     shoukaku.leaveVoiceChannel(guildId);

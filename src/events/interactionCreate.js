@@ -83,9 +83,11 @@ module.exports = {
 
                 switch (action) {
                     case 'back':
-                        // Dans Shoukaku v4, on redémarre le morceau actuel
-                        player.connection.seekTo(0);
-                        await interaction.reply({ content: '⏪ Morceau redémarré depuis le début !' });
+                        const prevTrack = player.previousTrack();
+                        if (!prevTrack) return interaction.reply({ content: '❌ Pas de morceau précédent dans l\'historique.', flags: [64] });
+
+                        await playTrack(player, prevTrack);
+                        await interaction.reply({ content: '⏪ Retour au morceau précédent !' });
                         break;
                     case 'loop':
                         // Modes: 'none', 'track', 'queue'
