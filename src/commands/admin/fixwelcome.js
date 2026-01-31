@@ -43,12 +43,17 @@ module.exports = {
 
             // Regex pour détecter les mentions brutes qui n'ont pas été résolues (souvent <@ID> dans une string d'embed)
             // On cherche le motif Bienvenue suivi de <@...
-            if (description.includes('Bienvenue') && /<@(\d+)>/.test(description)) {
+            const match = description.match(/<@!?(\d+)>/);
+            if (description.includes('Bienvenue') && match) {
                 try {
-                    const newEmbed = EmbedBuilder.from(embed);
+                    const userId = match[1];
+                    await interaction.client.users.fetch(userId).catch(() => null);
 
-                    // On remplace juste pour forcer un re-render de l'embed
-                    // Parfois, simplement éditer le message avec le même contenu force Discord à re-vérifier les mentions
+                    const newDescription = description.includes(' <@!') ?
+                        description.replace(/<@!(\d+)>/, `<@$1>`) :
+                        description.replace(/<@(\d+)>/, `<@!$1>`);
+
+                    const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription + ' ');
                     await message.edit({ embeds: [newEmbed] });
                     fixedCount++;
                 } catch (error) {
