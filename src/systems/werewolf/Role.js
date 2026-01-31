@@ -14,7 +14,7 @@ class Role {
         return this._name;
     }
 
-    async onNight(game, player) {
+    async onNight(game, player, unixTimestamp, thread) {
         // Logique par défaut pour la nuit (rien)
         return null;
     }
