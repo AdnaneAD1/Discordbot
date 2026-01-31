@@ -1,24 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { validatePrompt } = require('../../utils/contentFilter');
 const imageCooldown = require('../../systems/imageCooldown');
-const path = require('path');
-const fs = require('fs');
-
-// Styles disponibles avec leurs modificateurs de prompt
-const STYLES = {
-    realistic: 'photorealistic, highly detailed, 8k quality',
-    anime: 'anime style, manga art, vibrant colors',
-    cartoon: 'cartoon style, colorful, playful',
-    'digital-art': 'digital art, concept art, artstation quality',
-    'oil-painting': 'oil painting style, classical art, brushstrokes',
-    cyberpunk: 'cyberpunk style, neon lights, futuristic',
-    fantasy: 'fantasy art, magical, ethereal'
-};
+const { generateImage, getAllStyles, getStyleInfo } = require('../../services/imageGeneration');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('imagine')
-        .setDescription('Génère une image à partir d\'une description')
+        .setDescription('Génère une image à partir d\'une description (propulsé par Nano Banana & HF)')
         .addStringOption(option =>
             option.setName('prompt')
                 .setDescription('Description de l\'image à générer')
@@ -34,7 +22,12 @@ module.exports = {
                     { name: '💻 Digital Art', value: 'digital-art' },
                     { name: '🖼️ Peinture à l\'huile', value: 'oil-painting' },
                     { name: '🌃 Cyberpunk', value: 'cyberpunk' },
-                    { name: '✨ Fantasy', value: 'fantasy' }
+                    { name: '✨ Fantasy', value: 'fantasy' },
+                    { name: '👾 Pixel Art', value: 'pixel-art' },
+                    { name: '🎨 Aquarelle', value: 'watercolor' },
+                    { name: '🎮 3D Render', value: '3d-render' },
+                    { name: '⬜ Minimaliste', value: 'minimalist' },
+                    { name: '👤 Portrait', value: 'portrait' }
                 ))
         .addBooleanOption(option =>
             option.setName('private')
@@ -56,7 +49,7 @@ module.exports = {
         const cooldownCheck = await imageCooldown.checkCooldown(interaction.guild.id, interaction.user.id);
         if (!cooldownCheck.allowed) {
             return interaction.reply({
-                content: `⏱️ Tu as atteint la limite de 5 images par jour.\nRéessaye dans **${cooldownCheck.resetIn} heure(s)**.`,
+                content: `⏱️ Tu as atteint la limite de 5 images par jour.\nRéessaye dans **${cooldownCheck.resetIn}**.`,
                 flags: [64]
             });
         }
@@ -64,28 +57,32 @@ module.exports = {
         await interaction.deferReply({ flags: isPrivate ? [64] : [] });
 
         try {
-            // Construction du prompt complet avec le style
-            const styleModifier = STYLES[style];
-            const fullPrompt = `${prompt}, ${styleModifier}`;
-
-            // Note: Cette partie nécessite une intégration avec une API de génération d'images
-            // Pour l'instant, on simule avec un placeholder
-            const imagePath = await generateImage(fullPrompt, interaction.user.id);
+            // Génération de l'image avec le nouveau service
+            const result = await generateImage(prompt, {
+                style,
+                userId: interaction.user.id,
+                guildId: interaction.guild.id,
+                premium: false
+            });
 
             // Enregistrement de la génération
             await imageCooldown.recordGeneration(interaction.guild.id, interaction.user.id);
+
+            // Récupérer les infos du style
+            const styleInfo = getStyleInfo(style);
 
             // Création de l'embed
             const embed = new EmbedBuilder()
                 .setTitle('🎨 Image Générée')
                 .setDescription(`**Prompt :** ${prompt}`)
                 .addFields(
-                    { name: 'Style', value: style, inline: true },
-                    { name: 'Restant', value: `${cooldownCheck.remaining - 1}/5`, inline: true }
+                    { name: 'Style', value: `${styleInfo?.emoji || '🎨'} ${styleInfo?.name || style}`, inline: true },
+                    { name: 'Restant', value: `${cooldownCheck.remaining - 1}/5`, inline: true },
+                    { name: 'Provider', value: result.providerName, inline: true }
                 )
-                .setImage(`attachment://generated.png`)
+                .setImage('attachment://generated.png')
                 .setColor('#9b59b6')
-                .setFooter({ text: `Demandé par ${interaction.user.username}` })
+                .setFooter({ text: `Demandé par ${interaction.user.username} • Propulsé par ${result.providerName}` })
                 .setTimestamp();
 
             // Boutons d'action
@@ -103,7 +100,7 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
-            const attachment = new AttachmentBuilder(imagePath, { name: 'generated.png' });
+            const attachment = new AttachmentBuilder(result.filepath, { name: 'generated.png' });
 
             await interaction.editReply({
                 embeds: [embed],
@@ -117,98 +114,23 @@ module.exports = {
 
         } catch (error) {
             console.error('Erreur lors de la génération:', error);
+
+            let errorMessage = '❌ Une erreur est survenue lors de la génération de l\'image.';
+
+            if (error.message.includes('401') || error.message.includes('Invalid token')) {
+                errorMessage = '❌ Erreur d\'authentification API. Contactez un administrateur.';
+            } else if (error.message.includes('503') || error.message.includes('loading')) {
+                errorMessage = '⏳ Le modèle est en cours de chargement. Réessayez dans 20 secondes.';
+            } else if (error.message.includes('indisponibles')) {
+                errorMessage = '❌ Tous les services de génération d\'images sont temporairement indisponibles. Réessayez plus tard.';
+            }
+
             await interaction.editReply({
-                content: `❌ ${error.message || 'Une erreur est survenue lors de la génération de l\'image.'}`,
-                flags: [64]
+                content: errorMessage,
+                embeds: [],
+                files: [],
+                components: []
             });
         }
     }
 };
-
-// Fonction de génération d'image via Hugging Face API (nouvelle version)
-async function generateImage(prompt, userId) {
-    const fs = require('fs').promises;
-    const path = require('path');
-
-    try {
-        // Utilisation de la nouvelle API Hugging Face
-        const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-
-        if (!HF_API_KEY) {
-            throw new Error('Clé API Hugging Face manquante. Ajoute HUGGINGFACE_API_KEY dans ton .env');
-        }
-
-        // Utilisation du routeur nscale recommandé pour FLUX.1-schnell
-        const API_URL = 'https://router.huggingface.co/nscale/v1/images/generations';
-
-        const response = await fetch(API_URL, {
-            headers: {
-                'Authorization': `Bearer ${HF_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            method: 'POST',
-            body: JSON.stringify({
-                prompt: prompt,
-                model: 'black-forest-labs/FLUX.1-schnell',
-                response_format: 'b64_json'
-            })
-        });
-
-        if (!response.ok) {
-            let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.error?.message || errorData.error || errorMsg;
-            } catch (e) { }
-            throw new Error(errorMsg);
-        }
-
-        const result = await response.json();
-        const b64Image = result.data?.[0]?.b64_json;
-
-        if (!b64Image) {
-            throw new Error('L\'API n\'a renvoyé aucune donnée d\'image (base64)');
-        }
-
-        const imageBuffer = Buffer.from(b64Image, 'base64');
-
-        // Sauvegarder l'image temporairement
-        const tempDir = path.join(__dirname, '..', '..', 'temp');
-        await fs.mkdir(tempDir, { recursive: true });
-
-        const filename = `generated_${userId}_${Date.now()}.png`;
-        const filepath = path.join(tempDir, filename);
-
-        await fs.writeFile(filepath, imageBuffer);
-
-        return filepath;
-    } catch (error) {
-        // Décoder le message d'erreur
-        let errorMessage = error.message || error.toString();
-
-        // Si l'erreur est un objet (et pas une instance de Error avec un vrai message)
-        // ou si le message est le fameux "[object Object]"
-        if (errorMessage === '[object Object]' || (typeof error === 'object' && error !== null && !(error instanceof Error))) {
-            errorMessage = JSON.stringify(error);
-        }
-
-        console.error('Erreur génération image:', error);
-
-        // Si c'est une erreur d'authentification
-        if (errorMessage.includes('401') || errorMessage.includes('Invalid token')) {
-            throw new Error('Clé API Hugging Face invalide. Vérifie ta clé dans le .env');
-        }
-
-        // Si le modèle est en train de charger
-        if (errorMessage.includes('503') || errorMessage.includes('loading')) {
-            throw new Error('Le modèle est en cours de chargement. Réessaye dans 20 secondes.');
-        }
-
-        // Si la clé API est manquante
-        if (errorMessage.includes('Clé API')) {
-            throw error;
-        }
-
-        throw new Error(`Impossible de générer l'image: ${errorMessage}`);
-    }
-}

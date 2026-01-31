@@ -5,7 +5,9 @@ class Role {
         this.emoji = emoji;
         this.description = description;
         this.team = team; // 'VILLAGE', 'WEREWOLF', 'SOLO'
-        this.imagePath = imagePath;
+
+        // Auto-assign image path following the convention role_[id].png
+        this.imagePath = `role_${id}.png`;
     }
 
     async onNight(game, player) {

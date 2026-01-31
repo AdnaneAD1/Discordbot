@@ -143,6 +143,47 @@ module.exports = {
 
                         await interaction.reply({ embeds: [qEmbed] });
                         break;
+
+                    case 'voteskip':
+                        const { handleVoteSkip } = require('../services/music');
+                        const voiceChannel = interaction.member.voice.channel;
+
+                        if (!voiceChannel) {
+                            return interaction.reply({ content: '❌ Tu dois être dans un salon vocal.', flags: [64] });
+                        }
+
+                        const voteResult = handleVoteSkip(player, interaction.user.id, voiceChannel);
+
+                        if (!voteResult.success) {
+                            return interaction.reply({ content: `❌ ${voteResult.error}`, flags: [64] });
+                        }
+
+                        if (voteResult.skipped) {
+                            await interaction.reply({ content: `🗳️ **Vote Skip réussi !** (${voteResult.current}/${voteResult.required}) - Morceau suivant !` });
+                        } else {
+                            await interaction.reply({ content: `🗳️ Vote enregistré ! (${voteResult.current}/${voteResult.required} votes nécessaires)` });
+                        }
+                        break;
+
+                    case 'shuffle':
+                        if (player.queue.length < 2) {
+                            return interaction.reply({ content: '❌ Pas assez de morceaux dans la file pour mélanger.', flags: [64] });
+                        }
+
+                        // Mélanger la queue (Fisher-Yates shuffle)
+                        const queueArray = [...player.queue];
+                        for (let i = queueArray.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [queueArray[i], queueArray[j]] = [queueArray[j], queueArray[i]];
+                        }
+
+                        player.queue.clear();
+                        for (const track of queueArray) {
+                            player.queue.add(track);
+                        }
+
+                        await interaction.reply({ content: `🔀 File d'attente mélangée ! (${queueArray.length} morceaux)` });
+                        break;
                 }
             } else if (customId.startsWith('lg_')) {
                 // Gestion des boutons Loup-Garou
@@ -320,6 +361,105 @@ module.exports = {
                     await interaction.reply({ content: "🔥 **L'INCENDIE VA DÉCOLLER !**", flags: [64] });
                     await game.checkNightEnd();
                 }
+            } else if (customId.startsWith('profile_')) {
+                // Gestion des boutons de profil
+                const { getProfile, updateProfile, getAllBackgrounds, formatBadges, getAllBadges, RARITY_COLORS, checkAndAwardBadges } = require('../systems/profiles');
+                const { getUserSubscription } = require('../services/subscriptions');
+                const guildId = interaction.guild.id;
+                const userId = interaction.user.id;
+
+                if (customId === 'profile_edit_bio') {
+                    // Envoyer un modal pour éditer la bio
+                    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+
+                    const modal = new ModalBuilder()
+                        .setCustomId('profile_bio_modal')
+                        .setTitle('Modifier ta bio');
+
+                    const bioInput = new TextInputBuilder()
+                        .setCustomId('bio_input')
+                        .setLabel('Ta nouvelle bio')
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setMaxLength(200)
+                        .setRequired(false)
+                        .setPlaceholder('Écris quelque chose sur toi...');
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(bioInput));
+                    await interaction.showModal(modal);
+
+                } else if (customId === 'profile_edit_background') {
+                    const subscription = await getUserSubscription(userId);
+                    const isPremium = subscription.tier.id !== 'free';
+                    const backgrounds = getAllBackgrounds();
+                    const profile = await getProfile(userId, guildId);
+
+                    const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+
+                    const options = backgrounds.map(bg => ({
+                        label: bg.name,
+                        value: bg.id,
+                        description: bg.premium ? '⭐ Premium requis' : 'Gratuit',
+                        emoji: bg.premium && !isPremium ? '🔒' : '🎨',
+                        default: profile.background === bg.id
+                    }));
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new StringSelectMenuBuilder()
+                                .setCustomId('profile_background_select')
+                                .setPlaceholder('Choisir un background')
+                                .addOptions(options)
+                        );
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎨 Choisis ton background')
+                        .setDescription(isPremium
+                            ? 'Tu as accès à tous les backgrounds !'
+                            : 'Les backgrounds avec 🔒 nécessitent un abonnement Premium.')
+                        .setColor(profile.accentColor || '#febc11');
+
+                    await interaction.reply({ embeds: [embed], components: [row], flags: [64] });
+
+                } else if (customId === 'profile_view_badges') {
+                    const profile = await getProfile(userId, guildId);
+                    const userBadges = profile.badges || [];
+                    const allBadges = getAllBadges();
+
+                    const newBadges = await checkAndAwardBadges(userId, guildId, interaction.member);
+
+                    let description = '';
+                    const ownedBadges = allBadges.filter(b => userBadges.includes(b.id));
+
+                    if (ownedBadges.length > 0) {
+                        description += '**Tes badges :**\n';
+                        ownedBadges.forEach(badge => {
+                            description += `${badge.emoji} **${badge.name}** - ${badge.description}\n`;
+                        });
+                        description += '\n';
+                    }
+
+                    const missingBadges = allBadges.filter(b => !userBadges.includes(b.id) && b.rarity !== 'special');
+                    if (missingBadges.length > 0) {
+                        description += '**Badges à débloquer :**\n';
+                        missingBadges.slice(0, 10).forEach(badge => {
+                            description += `🔒 ~~${badge.emoji} ${badge.name}~~ - ${badge.description}\n`;
+                        });
+                    }
+
+                    const { EmbedBuilder } = require('discord.js');
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏅 Collection de Badges')
+                        .setDescription(description || 'Aucun badge pour l\'instant.')
+                        .setColor(profile.accentColor || '#febc11')
+                        .setFooter({ text: `${ownedBadges.length}/${allBadges.filter(b => b.rarity !== 'special').length} badges collectés` });
+
+                    if (newBadges.length > 0) {
+                        const newBadgesList = newBadges.map(b => `${b.emoji} ${b.name}`).join(', ');
+                        embed.addFields({ name: '🎉 Nouveaux badges débloqués !', value: newBadgesList });
+                    }
+
+                    await interaction.reply({ embeds: [embed], flags: [64] });
+                }
             }
         } else if (interaction.isStringSelectMenu()) {
             const { customId, values } = interaction;
@@ -489,6 +629,56 @@ module.exports = {
                     await interaction.reply({ content: `🧪 Tu as choisi d'éliminer <@${victimId}> !`, flags: [64] });
                     await game.checkNightEnd();
                 }
+            } else if (customId === 'profile_background_select') {
+                // Handler pour la sélection de background
+                const { getProfile, updateProfile, getAllBackgrounds } = require('../systems/profiles');
+                const { getUserSubscription } = require('../services/subscriptions');
+                const guildId = interaction.guild.id;
+                const userId = interaction.user.id;
+
+                const selectedBg = values[0];
+                const backgrounds = getAllBackgrounds();
+                const bgInfo = backgrounds.find(b => b.id === selectedBg);
+
+                if (!bgInfo) {
+                    return interaction.reply({ content: '❌ Background invalide.', flags: [64] });
+                }
+
+                // Vérifier si c'est un background premium
+                if (bgInfo.premium) {
+                    const subscription = await getUserSubscription(userId);
+                    if (subscription.tier.id === 'free') {
+                        return interaction.reply({
+                            content: '⭐ Ce background nécessite un abonnement **Premium**.',
+                            flags: [64]
+                        });
+                    }
+                }
+
+                await updateProfile(userId, guildId, { background: selectedBg });
+
+                await interaction.reply({
+                    content: `✅ Background mis à jour : **${bgInfo.name}**`,
+                    flags: [64]
+                });
+            }
+        } else if (interaction.isModalSubmit()) {
+            // Gestion des modals
+            const { customId } = interaction;
+
+            if (customId === 'profile_bio_modal') {
+                const { updateProfile } = require('../systems/profiles');
+                const guildId = interaction.guild.id;
+                const userId = interaction.user.id;
+
+                const bio = interaction.fields.getTextInputValue('bio_input') || '';
+
+                await updateProfile(userId, guildId, { bio });
+
+                await interaction.reply({
+                    content: bio ? `✅ Ta bio a été mise à jour :\n*"${bio}"*` : '✅ Ta bio a été supprimée.',
+                    flags: [64]
+                });
             }
         }
     }

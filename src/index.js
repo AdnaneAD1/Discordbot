@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -10,6 +10,13 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildVoiceStates,
+    ],
+    // Partials pour s'assurer que les mentions peuvent être résolues
+    partials: [
+        Partials.User,
+        Partials.GuildMember,
+        Partials.Channel,
+        Partials.Message,
     ],
 });
 

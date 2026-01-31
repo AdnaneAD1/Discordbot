@@ -1,5 +1,53 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { db } = require('../services/firebase');
+const crypto = require('crypto');
+
+/**
+ * Génère un nombre aléatoire cryptographiquement sécurisé dans un intervalle [0, max)
+ * Utilise crypto.randomInt() pour garantir une distribution uniforme sans biais
+ * @param {number} max - Borne supérieure exclusive
+ * @returns {number} - Nombre aléatoire entre 0 et max-1
+ */
+function secureRandomInt(max) {
+    return crypto.randomInt(0, max);
+}
+
+/**
+ * Mélange un tableau de manière cryptographiquement sécurisée (Fisher-Yates avec crypto)
+ * Chaque élément a exactement la même probabilité d'être à n'importe quelle position
+ * @param {Array} array - Tableau à mélanger
+ * @returns {Array} - Nouveau tableau mélangé
+ */
+function secureShuffleArray(array) {
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = secureRandomInt(i + 1);
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+/**
+ * Sélectionne des gagnants de manière équitable et cryptographiquement sécurisée
+ * Algorithme: Fisher-Yates shuffle avec crypto.randomInt(), puis prendre les N premiers
+ *
+ * Garanties:
+ * - Chaque participant a exactement la même probabilité (1/n) d'être sélectionné
+ * - Utilise crypto.randomInt() qui est cryptographiquement sécurisé
+ * - Pas de biais mathématique (contrairement à Math.random() % n)
+ *
+ * @param {Array} participants - Liste des IDs des participants
+ * @param {number} count - Nombre de gagnants à sélectionner
+ * @returns {Array} - Liste des IDs des gagnants
+ */
+function selectWinners(participants, count) {
+    if (participants.length === 0) return [];
+    if (count >= participants.length) return secureShuffleArray(participants);
+
+    // Mélanger de manière sécurisée et prendre les N premiers
+    const shuffled = secureShuffleArray(participants);
+    return shuffled.slice(0, count);
+}
 
 async function startGiveaway(channel, prize, duration, winnerCount = 1, top10Only = false) {
     const client = channel.client;
@@ -54,13 +102,11 @@ async function endGiveaway(client, messageId) {
         return;
     }
 
-    // Pick winners
-    const winnersIds = [];
-    const pool = [...participants];
-    for (let i = 0; i < Math.min(data.winnerCount, participants.length); i++) {
-        const index = Math.floor(Math.random() * pool.length);
-        winnersIds.push(pool.splice(index, 1)[0]);
-    }
+    // Sélection équitable des gagnants avec crypto.randomInt()
+    // Chaque participant a exactement 1/n chance de gagner
+    const winnersIds = selectWinners(participants, data.winnerCount);
+
+    console.log(`[Giveaway] Sélection de ${winnersIds.length} gagnant(s) parmi ${participants.length} participants`);
 
     await gRef.update({ ended: true, winners: winnersIds });
 

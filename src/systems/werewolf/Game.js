@@ -2,6 +2,8 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType,
 const Player = require('./Player');
 const path = require('path');
 const fs = require('fs');
+const { recordWerewolfGame } = require('../gameStats');
+const { cachePlayersForMentions } = require('../../utils/mentions');
 
 class Game {
     constructor(client, channel, host, manager) {
@@ -141,7 +143,10 @@ class Game {
             return this.channel.send("❌ Impossible de créer le fil de discussion. Vérifiez mes permissions !");
         }
 
-        // 2. Distribute Roles
+        // 2. Cache all players for proper mention resolution
+        await cachePlayersForMentions(this.channel.guild, Array.from(this.players.values()));
+
+        // 3. Distribute Roles
         const roles = this.generateRoles(this.players.size);
 
         // Fisher-Yates Shuffle for true randomness
@@ -857,62 +862,94 @@ class Game {
         const whiteWolf = alivePlayers.find(p => p.role.id === 'white_werewolf');
         const pyro = alivePlayers.find(p => p.role.id === 'pyromaniac');
 
+        let winningTeam = null;
+
         // 1. Victoire du Couple (Priorité)
         if (alivePlayers.length === 2) {
             const p1 = alivePlayers[0];
             const p2 = alivePlayers[1];
             if (p1.lover === p2.id) {
+                winningTeam = 'lovers';
                 await this.thread.send('💘 **VICTOIRE DU COUPLE !** L\'amour a triomphé du chaos.');
                 const journalEmbed = await this.generateJournal('Victoire du Couple 💖');
                 await this.thread.send({ embeds: [journalEmbed] });
-                this.manager.endGame(this.channel.id);
-                this.cleanupThreads(60000);
-                return true;
             }
         }
 
         // 2. Victoire du Pyromane
-        if (pyro && alivePlayers.length <= 2 && !whiteWolf && wolves.length === 0) {
+        if (!winningTeam && pyro && alivePlayers.length <= 2 && !whiteWolf && wolves.length === 0) {
+            winningTeam = 'pyromaniac';
             await this.thread.send('🔥 **VICTOIRE DU PYROMANE !** Il a réduit le village en cendres et rit seul au milieu des ruines.');
             const journalEmbed = await this.generateJournal('Victoire du Pyromane');
             await this.thread.send({ embeds: [journalEmbed] });
-            this.manager.endGame(this.channel.id);
-            this.cleanupThreads(60000);
-            return true;
         }
 
         // 3. Victoire du Loup Blanc
-        if (whiteWolf && alivePlayers.length <= 2 && wolves.length === 0) {
+        if (!winningTeam && whiteWolf && alivePlayers.length <= 2 && wolves.length === 0) {
+            winningTeam = 'white_werewolf';
             await this.thread.send('⚪ **VICTOIRE DU LOUP BLANC !** Il a dévoré tout le monde, même ses semblables.');
             const journalEmbed = await this.generateJournal('Victoire du Loup Blanc');
             await this.thread.send({ embeds: [journalEmbed] });
-            this.manager.endGame(this.channel.id);
-            this.cleanupThreads(60000);
-            return true;
         }
 
         // 4. Victoire du Village
-        if (wolves.length === 0 && !whiteWolf && !pyro) {
+        if (!winningTeam && wolves.length === 0 && !whiteWolf && !pyro) {
+            winningTeam = 'village';
             await this.thread.send('🎉 **VICTOIRE DU VILLAGE !** Tous les loups et menaces ont été éliminés.');
             const journalEmbed = await this.generateJournal('Victoire du Village');
             await this.thread.send({ embeds: [journalEmbed] });
+        }
+
+        // 5. Victoire des Loups
+        if (!winningTeam && (wolves.length + (whiteWolf ? 1 : 0)) >= villagers.length && !pyro) {
+            if (!whiteWolf || (whiteWolf && wolves.length > 0)) {
+                winningTeam = 'werewolf';
+                await this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
+                const journalEmbed = await this.generateJournal('Victoire des Loups');
+                await this.thread.send({ embeds: [journalEmbed] });
+            }
+        }
+
+        // Si une équipe a gagné, enregistrer les statistiques
+        if (winningTeam) {
+            await this.recordGameStats(winningTeam);
             this.manager.endGame(this.channel.id);
             this.cleanupThreads(60000);
             return true;
         }
 
-        // 5. Victoire des Loups
-        if ((wolves.length + (whiteWolf ? 1 : 0)) >= villagers.length && !pyro) {
-            if (!whiteWolf || (whiteWolf && wolves.length > 0)) {
-                await this.thread.send('🐺 **VICTOIRE DES LOUPS-GAROUS !** Ils ont dévoré tout le village.');
-                const journalEmbed = await this.generateJournal('Victoire des Loups');
-                await this.thread.send({ embeds: [journalEmbed] });
-                this.manager.endGame(this.channel.id);
-                this.cleanupThreads(60000);
-                return true;
-            }
-        }
         return false;
+    }
+
+    /**
+     * Enregistre les statistiques de la partie
+     */
+    async recordGameStats(winningTeam) {
+        try {
+            const playersData = Array.from(this.players.values()).map(p => ({
+                id: p.id,
+                username: p.username,
+                role: p.role,
+                team: p.role.team,
+                isAlive: p.isAlive,
+                lover: p.lover
+            }));
+
+            const gameData = {
+                wasMayor: this.mayorId ? [this.mayorId] : []
+            };
+
+            await recordWerewolfGame(
+                this.channel.guildId,
+                playersData,
+                winningTeam,
+                gameData
+            );
+
+            console.log(`[Werewolf] Stats enregistrées - Vainqueur: ${winningTeam}`);
+        } catch (error) {
+            console.error('[Werewolf] Erreur enregistrement stats:', error);
+        }
     }
 
     async handleVillageVoteResult() {
@@ -973,19 +1010,22 @@ class Game {
     }
 
     async generateJournal(title) {
+        // S'assurer que tous les joueurs sont en cache pour les mentions
+        await cachePlayersForMentions(this.channel.guild, Array.from(this.players.values()));
+
         const embed = new EmbedBuilder()
             .setTitle(`📜 Journal : ${title}`)
             .setDescription(this.logs.join('\n') || "Aucun événement notable.")
             .setColor('#7f8c8d')
             .setTimestamp();
 
-        // Reveal all roles
+        // Reveal all roles - Utiliser les mentions Discord @
         let revelation = "";
         for (const p of this.players.values()) {
             let status = `${p.isAlive ? '✅' : '💀'} <@${p.id}> : **${p.role.name}**`;
             if (p.lover) {
                 const lover = this.players.get(p.lover);
-                status += ` 💘 (Amoureux de **${lover?.username || '?'}**)`;
+                status += ` 💘 (Amoureux de <@${lover?.id}>)`;
             }
             revelation += status + '\n';
         }
@@ -994,13 +1034,6 @@ class Game {
         return embed;
     }
 
-    stop() {
-        this.clearTimers();
-        if (this.thread) this.thread.setArchived(true).catch(() => { });
-        if (this.wolfThread) this.wolfThread.setArchived(true).catch(() => { });
-        this.manager.endGame(this.channel.id);
-        this.channel.send("🛑 **Partie annulée.**");
-    }
 }
 
 module.exports = Game;
