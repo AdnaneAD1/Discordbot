@@ -25,7 +25,7 @@ const { initNotifications } = require('./services/notifications');
 const WerewolfManager = require('./systems/werewolf/index');
 
 client.commands = new Collection();
-client.kazagumo = initMusic(client);
+client.shoukaku = initMusic(client);
 client.werewolf = new WerewolfManager(client);
 initNotifications(client);
 

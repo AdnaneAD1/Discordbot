@@ -1,33 +1,11 @@
 const { Shoukaku, Connectors } = require('shoukaku');
-const { Kazagumo, Plugins } = require('kazagumo');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const Spotify = require('kazagumo-spotify');
 const { db } = require('./firebase');
 
 /**
  * =============================================
- * CONFIGURATION LAVASRC (Plugin Lavalink v4)
+ * CONFIGURATION LAVALINK v4 avec SHOUKAKU v4
  * =============================================
- *
- * Si le serveur Lavalink utilise le plugin LavaSrc, les préfixes de recherche suivants sont disponibles :
- *
- * | Préfixe     | Source        | Exemple                          |
- * |-------------|---------------|----------------------------------|
- * | ytsearch:   | YouTube       | ytsearch:never gonna give you up |
- * | ytmsearch:  | YouTube Music | ytmsearch:lofi hip hop           |
- * | spsearch:   | Spotify       | spsearch:daft punk               |
- * | amsearch:   | Apple Music   | amsearch:the weeknd              |
- * | dzsearch:   | Deezer        | dzsearch:stromae                 |
- * | scsearch:   | SoundCloud    | scsearch:monstercat              |
- * | ymsearch:   | Yandex Music  | ymsearch:russian song            |
- *
- * LavaSrc utilise le "mirroring" : Spotify/Apple Music récupèrent les métadonnées
- * puis cherchent la piste sur YouTube/Deezer pour la lecture.
- *
- * Configuration requise côté Lavalink (application.yml) :
- * - plugins.lavasrc.sources.spotify: true
- * - plugins.lavasrc.spotify.clientId: "..."
- * - plugins.lavasrc.spotify.clientSecret: "..."
  */
 
 /**
@@ -36,7 +14,7 @@ const { db } = require('./firebase');
 function getNodes() {
     const nodes = [];
 
-    // Nœud principal
+    // Nœud principal depuis les variables d'environnement
     if (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT) {
         nodes.push({
             name: 'MainNode',
@@ -46,26 +24,11 @@ function getNodes() {
         });
     }
 
-    // Nœuds de backup (format: host:port:password,host2:port2:password2)
-    if (process.env.LAVALINK_BACKUP_NODES) {
-        const backupNodes = process.env.LAVALINK_BACKUP_NODES.split(',');
-        backupNodes.forEach((nodeStr, index) => {
-            const [host, port, password] = nodeStr.split(':');
-            if (host && port) {
-                nodes.push({
-                    name: `BackupNode${index + 1}`,
-                    url: `${host}:${port}`,
-                    auth: password || 'youshallnotpass',
-                    secure: false
-                });
-            }
-        });
-    }
-
     // Nœuds publics gratuits comme fallback ultime
     const publicNodes = [
         { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
-        { name: 'PublicNode1', url: 'lavalink.devamop.in:443', auth: 'DevamOP', secure: true }
+        { name: 'Serenetia2', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
+        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
     ];
 
     // Ajouter les nœuds publics seulement si aucun nœud n'est configuré
@@ -76,8 +39,55 @@ function getNodes() {
     return nodes;
 }
 
-let kazagumo;
-let nodeStatus = new Map(); // Suivi du statut des nœuds
+let shoukaku;
+let nodeStatus = new Map();
+
+// Stockage des players personnalisés avec queue et metadata
+const players = new Map();
+
+/**
+ * Classe Player personnalisée pour gérer la queue et les métadonnées
+ */
+class MusicPlayer {
+    constructor(guildId, connection) {
+        this.guildId = guildId;
+        this.connection = connection;
+        this.queue = [];
+        this.current = null;
+        this.loop = 'none'; // 'none', 'track', 'queue'
+        this.volume = 100;
+        this.textChannel = null;
+        this.nowPlayingMessage = null;
+        this.skipVotes = new Set();
+    }
+
+    addTrack(track) {
+        this.queue.push(track);
+    }
+
+    nextTrack() {
+        if (this.loop === 'track' && this.current) {
+            return this.current;
+        }
+        if (this.loop === 'queue' && this.current) {
+            this.queue.push(this.current);
+        }
+        this.current = this.queue.shift() || null;
+        return this.current;
+    }
+
+    shuffle() {
+        for (let i = this.queue.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.queue[i], this.queue[j]] = [this.queue[j], this.queue[i]];
+        }
+    }
+
+    clear() {
+        this.queue = [];
+        this.current = null;
+    }
+}
 
 const initMusic = (client) => {
     const nodes = getNodes();
@@ -87,19 +97,7 @@ const initMusic = (client) => {
         return null;
     }
 
-    kazagumo = new Kazagumo({
-        defaultSearchEngine: 'youtube',
-        plugins: [
-            new Spotify({
-                clientId: process.env.SPOTIFY_CLIENT_ID,
-                clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-            })
-        ],
-        send: (guildId, payload) => {
-            const guild = client.guilds.cache.get(guildId);
-            if (guild) guild.shard.send(payload);
-        }
-    }, new Connectors.DiscordJS(client), nodes, {
+    shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
         moveOnDisconnect: true,
         resume: true,
         resumeTimeout: 60,
@@ -108,34 +106,96 @@ const initMusic = (client) => {
     });
 
     // Événements Shoukaku (gestion des nœuds)
-    kazagumo.shoukaku.on('ready', (name) => {
+    shoukaku.on('ready', (name) => {
         console.log(`🎵 Lavalink Node "${name}" connecté.`);
         nodeStatus.set(name, { connected: true, lastError: null });
     });
 
-    kazagumo.shoukaku.on('error', (name, error) => {
+    shoukaku.on('error', (name, error) => {
         console.error(`❌ Lavalink Node "${name}" Erreur:`, error.message);
         nodeStatus.set(name, { connected: false, lastError: error.message });
     });
 
-    kazagumo.shoukaku.on('close', (name, code, reason) => {
+    shoukaku.on('close', (name, code, reason) => {
         console.warn(`⚠️ Lavalink Node "${name}" déconnecté (Code: ${code})`);
         nodeStatus.set(name, { connected: false, lastError: `Déconnecté: ${reason || 'Raison inconnue'}` });
     });
 
-    kazagumo.shoukaku.on('disconnect', (name, players, moved) => {
-        console.warn(`⚠️ Lavalink Node "${name}" déconnecté. ${players.length} lecteur(s) affecté(s).`);
+    shoukaku.on('disconnect', (name, playersMoved, moved) => {
+        console.warn(`⚠️ Lavalink Node "${name}" déconnecté. ${playersMoved.length} lecteur(s) affecté(s).`);
         if (moved) {
             console.log(`🔄 Lecteurs migrés vers un autre nœud.`);
         }
     });
 
-    kazagumo.shoukaku.on('reconnecting', (name, left, timeout) => {
-        console.log(`🔄 Tentative de reconnexion au nœud "${name}" (${left} essais restants)`);
+    shoukaku.on('reconnecting', (name, info) => {
+        console.log(`🔄 Tentative de reconnexion au nœud "${name}" (${info})`);
     });
 
-    // Événements Kazagumo (gestion des lecteurs)
-    kazagumo.on('playerStart', async (player, track) => {
+    return shoukaku;
+};
+
+/**
+ * Crée ou récupère un player pour un serveur
+ */
+async function getPlayer(guildId, channelId) {
+    if (players.has(guildId)) {
+        return players.get(guildId);
+    }
+
+    const node = shoukaku.getIdealNode();
+    if (!node) {
+        throw new Error('Aucun nœud Lavalink disponible');
+    }
+
+    const connection = await shoukaku.joinVoiceChannel({
+        guildId: guildId,
+        channelId: channelId,
+        shardId: 0,
+        deaf: true
+    });
+
+    const player = new MusicPlayer(guildId, connection);
+    players.set(guildId, player);
+
+    // Gérer la fin d'une piste
+    connection.on('end', async (data) => {
+        if (data.reason === 'replaced') return;
+
+        const nextTrack = player.nextTrack();
+        if (nextTrack) {
+            await playTrack(player, nextTrack);
+        } else {
+            // File vide
+            if (player.textChannel) {
+                player.textChannel.send('📂 La file d\'attente est vide. À bientôt !').catch(() => { });
+            }
+            destroyPlayer(guildId);
+        }
+    });
+
+    connection.on('closed', () => {
+        destroyPlayer(guildId);
+    });
+
+    connection.on('error', (error) => {
+        console.error(`Erreur player ${guildId}:`, error);
+    });
+
+    return player;
+}
+
+/**
+ * Joue une piste
+ */
+async function playTrack(player, track) {
+    player.current = track;
+    player.skipVotes = new Set();
+
+    await player.connection.playTrack({ track: track.encoded });
+
+    // Envoyer l'embed "En lecture"
+    if (player.textChannel) {
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder().setCustomId('music_back').setEmoji('⏮️').setStyle(ButtonStyle.Primary),
@@ -155,54 +215,66 @@ const initMusic = (client) => {
         const embed = new EmbedBuilder()
             .setColor('#febc11')
             .setTitle('🎵 En lecture')
-            .setDescription(`**[${track.title}](${track.uri})**`)
-            .setThumbnail(track.thumbnail || null)
+            .setDescription(`**[${track.info.title}](${track.info.uri})**`)
+            .setThumbnail(track.info.artworkUrl || null)
             .addFields(
-                { name: 'Durée', value: formatTime(track.length), inline: true },
-                { name: 'Auteur', value: track.author || 'Inconnu', inline: true }
+                { name: 'Durée', value: formatTime(track.info.length), inline: true },
+                { name: 'Auteur', value: track.info.author || 'Inconnu', inline: true }
             )
             .setFooter({ text: `Demandé par ${track.requester?.username || 'Inconnu'}` });
 
-        const channel = player.data.get('message')?.channel;
-        if (channel) {
-            // Supprimer l'ancien message de lecture si existant
-            const oldMessage = player.data.get('nowPlayingMessage');
-            if (oldMessage) {
-                oldMessage.delete().catch(() => { });
-            }
-
-            const newMessage = await channel.send({
-                embeds: [embed],
-                components: [row, row2]
-            });
-
-            player.data.set('nowPlayingMessage', newMessage);
+        // Supprimer l'ancien message
+        if (player.nowPlayingMessage) {
+            player.nowPlayingMessage.delete().catch(() => { });
         }
-    });
 
-    kazagumo.on('playerEnd', (player) => {
-        // Réinitialiser les votes skip
-        player.data.set('skipVotes', new Set());
-    });
+        player.nowPlayingMessage = await player.textChannel.send({
+            embeds: [embed],
+            components: [row, row2]
+        }).catch(() => null);
+    }
+}
 
-    kazagumo.on('playerEmpty', (player) => {
-        const channel = player.data.get('message')?.channel;
-        if (channel) {
-            channel.send(`📂 La file d'attente est vide. À bientôt !`);
+/**
+ * Recherche des pistes
+ */
+async function search(query, requester) {
+    const node = shoukaku.getIdealNode();
+    if (!node) {
+        throw new Error('Aucun nœud Lavalink disponible');
+    }
+
+    // Ajouter le préfixe de recherche si ce n'est pas une URL
+    const searchQuery = query.startsWith('http') ? query : `ytsearch:${query}`;
+
+    const result = await node.rest.resolve(searchQuery);
+    if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+        return null;
+    }
+
+    const tracks = result.loadType === 'playlist' ? result.data.tracks : result.data;
+
+    // Ajouter le requester à chaque piste
+    return tracks.map(track => ({
+        ...track,
+        requester
+    }));
+}
+
+/**
+ * Détruit un player
+ */
+function destroyPlayer(guildId) {
+    const player = players.get(guildId);
+    if (player) {
+        if (player.nowPlayingMessage) {
+            player.nowPlayingMessage.delete().catch(() => { });
         }
-        player.destroy();
-    });
-
-    kazagumo.on('playerDestroy', (player) => {
-        // Nettoyer le message de lecture
-        const oldMessage = player.data.get('nowPlayingMessage');
-        if (oldMessage) {
-            oldMessage.delete().catch(() => { });
-        }
-    });
-
-    return kazagumo;
-};
+        player.connection.disconnect();
+        players.delete(guildId);
+    }
+    shoukaku.leaveVoiceChannel(guildId);
+}
 
 /**
  * Formate le temps en mm:ss ou hh:mm:ss
@@ -222,9 +294,14 @@ function formatTime(ms) {
 }
 
 /**
- * Obtient l'instance Kazagumo
+ * Obtient l'instance Shoukaku
  */
-const getKazagumo = () => kazagumo;
+const getShoukaku = () => shoukaku;
+
+/**
+ * Obtient un player existant
+ */
+const getExistingPlayer = (guildId) => players.get(guildId);
 
 /**
  * Obtient le statut des nœuds
@@ -245,7 +322,7 @@ const getNodesStatus = () => {
  * Vérifie si le système musical est disponible
  */
 const isMusicAvailable = () => {
-    if (!kazagumo) return false;
+    if (!shoukaku) return false;
     return Array.from(nodeStatus.values()).some(n => n.connected);
 };
 
@@ -253,9 +330,6 @@ const isMusicAvailable = () => {
 // SYSTÈME DE PLAYLISTS
 // =====================
 
-/**
- * Sauvegarde une playlist pour un serveur
- */
 async function savePlaylist(guildId, userId, name, tracks) {
     try {
         const playlistRef = db.collection('guilds').doc(guildId)
@@ -265,11 +339,11 @@ async function savePlaylist(guildId, userId, name, tracks) {
             name,
             createdBy: userId,
             tracks: tracks.map(t => ({
-                title: t.title,
-                uri: t.uri,
-                author: t.author,
-                length: t.length,
-                thumbnail: t.thumbnail
+                title: t.info?.title || t.title,
+                uri: t.info?.uri || t.uri,
+                author: t.info?.author || t.author,
+                length: t.info?.length || t.length,
+                artworkUrl: t.info?.artworkUrl || t.thumbnail
             })),
             createdAt: new Date(),
             updatedAt: new Date()
@@ -282,9 +356,6 @@ async function savePlaylist(guildId, userId, name, tracks) {
     }
 }
 
-/**
- * Charge une playlist
- */
 async function loadPlaylist(guildId, playlistId) {
     try {
         const playlistDoc = await db.collection('guilds').doc(guildId)
@@ -301,9 +372,6 @@ async function loadPlaylist(guildId, playlistId) {
     }
 }
 
-/**
- * Liste les playlists d'un serveur
- */
 async function getPlaylists(guildId, userId = null) {
     try {
         let query = db.collection('guilds').doc(guildId).collection('playlists');
@@ -326,9 +394,6 @@ async function getPlaylists(guildId, userId = null) {
     }
 }
 
-/**
- * Supprime une playlist
- */
 async function deletePlaylist(guildId, playlistId, userId) {
     try {
         const playlistRef = db.collection('guilds').doc(guildId)
@@ -340,7 +405,6 @@ async function deletePlaylist(guildId, playlistId, userId) {
             return { success: false, error: 'Playlist introuvable' };
         }
 
-        // Vérifier que l'utilisateur est le créateur
         if (playlistDoc.data().createdBy !== userId) {
             return { success: false, error: 'Vous ne pouvez supprimer que vos propres playlists' };
         }
@@ -357,39 +421,24 @@ async function deletePlaylist(guildId, playlistId, userId) {
 // SYSTÈME DE VOTE SKIP
 // =====================
 
-/**
- * Gère un vote skip
- * @returns {Object} { success, skipped, current, required }
- */
 function handleVoteSkip(player, userId, voiceChannel) {
     if (!player || !voiceChannel) {
         return { success: false, error: 'Lecteur ou salon vocal introuvable' };
     }
 
-    // Initialiser les votes si nécessaire
-    if (!player.data.get('skipVotes')) {
-        player.data.set('skipVotes', new Set());
-    }
-
-    const skipVotes = player.data.get('skipVotes');
-
-    // Vérifier si l'utilisateur a déjà voté
-    if (skipVotes.has(userId)) {
+    if (player.skipVotes.has(userId)) {
         return { success: false, error: 'Tu as déjà voté !' };
     }
 
-    // Ajouter le vote
-    skipVotes.add(userId);
+    player.skipVotes.add(userId);
 
-    // Calculer les votes requis (50% des membres dans le vocal, minimum 2)
     const membersInVoice = voiceChannel.members.filter(m => !m.user.bot).size;
     const requiredVotes = Math.max(2, Math.ceil(membersInVoice / 2));
-    const currentVotes = skipVotes.size;
+    const currentVotes = player.skipVotes.size;
 
-    // Si assez de votes, skip
     if (currentVotes >= requiredVotes) {
-        player.skip();
-        player.data.set('skipVotes', new Set());
+        player.connection.stopTrack();
+        player.skipVotes = new Set();
         return { success: true, skipped: true, current: currentVotes, required: requiredVotes };
     }
 
@@ -397,57 +446,34 @@ function handleVoteSkip(player, userId, voiceChannel) {
 }
 
 // =====================
-// LAVASRC SEARCH HELPERS
+// SEARCH HELPERS
 // =====================
 
-/**
- * Préfixes de recherche disponibles avec LavaSrc
- */
 const SEARCH_ENGINES = {
     YOUTUBE: 'ytsearch',
     YOUTUBE_MUSIC: 'ytmsearch',
     SPOTIFY: 'spsearch',
-    APPLE_MUSIC: 'amsearch',
-    DEEZER: 'dzsearch',
     SOUNDCLOUD: 'scsearch',
-    YANDEX: 'ymsearch'
+    DEEZER: 'dzsearch'
 };
 
-/**
- * Détermine le meilleur préfixe de recherche basé sur l'URL ou la requête
- * @param {string} query - La requête ou URL
- * @returns {string} - La requête avec le préfixe approprié
- */
 function getSearchQuery(query) {
-    // Si c'est déjà une URL, retourner tel quel
     if (query.startsWith('http://') || query.startsWith('https://')) {
         return query;
     }
-
-    // Si un préfixe est déjà spécifié, retourner tel quel
     if (query.includes(':') && Object.values(SEARCH_ENGINES).some(prefix => query.startsWith(prefix))) {
         return query;
     }
-
-    // Par défaut, utiliser YouTube
     return `${SEARCH_ENGINES.YOUTUBE}:${query}`;
 }
 
-/**
- * Formate une requête pour une source spécifique
- * @param {string} query - La requête
- * @param {string} source - La source (youtube, spotify, etc.)
- * @returns {string} - La requête formatée
- */
 function formatSearchQuery(query, source = 'youtube') {
     const prefixes = {
         'youtube': SEARCH_ENGINES.YOUTUBE,
         'ytmusic': SEARCH_ENGINES.YOUTUBE_MUSIC,
         'spotify': SEARCH_ENGINES.SPOTIFY,
-        'apple': SEARCH_ENGINES.APPLE_MUSIC,
-        'deezer': SEARCH_ENGINES.DEEZER,
         'soundcloud': SEARCH_ENGINES.SOUNDCLOUD,
-        'yandex': SEARCH_ENGINES.YANDEX
+        'deezer': SEARCH_ENGINES.DEEZER
     };
 
     const prefix = prefixes[source.toLowerCase()] || SEARCH_ENGINES.YOUTUBE;
@@ -456,7 +482,12 @@ function formatSearchQuery(query, source = 'youtube') {
 
 module.exports = {
     initMusic,
-    getKazagumo,
+    getShoukaku,
+    getPlayer,
+    getExistingPlayer,
+    destroyPlayer,
+    search,
+    playTrack,
     getNodesStatus,
     isMusicAvailable,
     formatTime,
@@ -467,8 +498,10 @@ module.exports = {
     deletePlaylist,
     // Vote Skip
     handleVoteSkip,
-    // LavaSrc
+    // Search
     SEARCH_ENGINES,
     getSearchQuery,
-    formatSearchQuery
+    formatSearchQuery,
+    // Backward compatibility
+    getKazagumo: getShoukaku
 };

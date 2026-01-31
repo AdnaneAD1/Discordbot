@@ -1,9 +1,5 @@
-// Note: This is an architectural foundation. 
-// A full Lavalink implementation requires a dedicated library like 'shoukaku' or 'kazagumo'.
-// Here we provide the command structure and placeholder for the logic.
-
 const { SlashCommandBuilder } = require('discord.js');
-const { db } = require('../../services/firebase');
+const { getPlayer, search, playTrack, isMusicAvailable } = require('../../services/music');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,49 +9,49 @@ module.exports = {
     async execute(interaction) {
         const query = interaction.options.getString('query');
 
-        let voiceChannelId = interaction.member.voice.channel?.id;
+        // Vérifier que le système musical est disponible
+        if (!isMusicAvailable()) {
+            return interaction.reply({
+                content: '❌ Le système musical est temporairement indisponible.',
+                ephemeral: true
+            });
+        }
 
-        if (!voiceChannelId) {
-            const guildId = interaction.guild.id;
-            const channelConfig = await db.collection('guilds').doc(guildId).collection('config').doc('channels').get();
-            voiceChannelId = channelConfig.data()?.defaultVoiceChannelId;
-
-            if (!voiceChannelId) {
-                return interaction.reply({
-                    content: '❌ Tu dois être dans un salon vocal ou un salon par défaut doit être configuré avec `/setupconfig` !',
-                    flags: [64]
-                });
-            }
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel) {
+            return interaction.reply({
+                content: '❌ Tu dois être dans un salon vocal !',
+                ephemeral: true
+            });
         }
 
         await interaction.deferReply();
 
         try {
-            const { kazagumo } = interaction.client;
-            const res = await kazagumo.search(query, { requester: interaction.user.id });
+            // Rechercher la piste
+            const tracks = await search(query, interaction.user);
 
-            if (!res.tracks.length) return interaction.editReply('❌ Aucun résultat trouvé.');
+            if (!tracks || tracks.length === 0) {
+                return interaction.editReply('❌ Aucun résultat trouvé.');
+            }
 
-            const player = await kazagumo.createPlayer({
-                guildId: interaction.guild.id,
-                textId: interaction.channel.id,
-                voiceId: voiceChannelId,
-                deaf: true
-            });
+            // Obtenir ou créer un player
+            const player = await getPlayer(interaction.guild.id, voiceChannel.id);
+            player.textChannel = interaction.channel;
 
-            player.data.set('message', interaction);
+            const track = tracks[0];
 
-            if (res.type === 'PLAYLIST') {
-                for (let track of res.tracks) player.queue.add(track);
-                if (!player.playing && !player.paused) player.play();
-                return interaction.editReply(`✅ Playlist **${res.playlistName}** ajoutée (${res.tracks.length} musiques).`);
+            // Si rien ne joue, jouer directement
+            if (!player.current) {
+                await playTrack(player, track);
+                return interaction.editReply(`🎵 **Lecture en cours :** ${track.info.title}`);
             } else {
-                player.queue.add(res.tracks[0]);
-                if (!player.playing && !player.paused) player.play();
-                return interaction.editReply(`✅ Ajouté à la file : **${res.tracks[0].title}**`);
+                // Sinon ajouter à la queue
+                player.addTrack(track);
+                return interaction.editReply(`✅ Ajouté à la file (position ${player.queue.length}) : **${track.info.title}**`);
             }
         } catch (error) {
-            console.error(error);
+            console.error('[Play Command Error]', error);
             return interaction.editReply('❌ Une erreur est survenue lors de la lecture.');
         }
     },
