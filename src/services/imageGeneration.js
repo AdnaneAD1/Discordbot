@@ -1,6 +1,6 @@
 /**
  * Service de génération d'images IA
- * Supporte Nano Banana (Puter.js) et Hugging Face comme fallback
+ * Supporte Pollinations.ai (gratuit) et Hugging Face comme fallback
  */
 
 const fs = require('fs').promises;
@@ -8,15 +8,15 @@ const path = require('path');
 
 // Providers disponibles
 const PROVIDERS = {
-    NANO_BANANA: 'nano_banana',
+    POLLINATIONS: 'pollinations',
     HUGGINGFACE: 'huggingface'
 };
 
 // Configuration des providers
 const providerConfig = {
-    [PROVIDERS.NANO_BANANA]: {
-        name: 'Nano Banana',
-        url: 'https://api.puter.com/ai/image/generate',
+    [PROVIDERS.POLLINATIONS]: {
+        name: 'Pollinations AI',
+        url: 'https://image.pollinations.ai/prompt/',
         priority: 1,
         enabled: true
     },
@@ -93,47 +93,51 @@ const STYLES = {
 };
 
 /**
- * Génère une image via Nano Banana (Puter.js)
+ * Génère une image via Pollinations.ai (100% gratuit, pas de clé API)
+ * Documentation: https://pollinations.ai
  */
-async function generateWithNanoBanana(prompt, options = {}) {
-    const model = options.premium ? 'nano-banana-pro' : 'nano-banana';
-
+async function generateWithPollinations(prompt, options = {}) {
     try {
-        const response = await fetch(providerConfig[PROVIDERS.NANO_BANANA].url, {
-            method: 'POST',
+        // Pollinations utilise une URL GET simple avec le prompt encodé
+        const encodedPrompt = encodeURIComponent(prompt);
+        const width = options.width || 1024;
+        const height = options.height || 1024;
+
+        // Paramètres optionnels: model, width, height, seed, nologo
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&nologo=true`;
+
+        console.log(`[Pollinations] Génération en cours...`);
+
+        const response = await fetch(url, {
+            method: 'GET',
             headers: {
-                'Content-Type': 'application/json',
-                ...(process.env.PUTER_API_KEY && { 'Authorization': `Bearer ${process.env.PUTER_API_KEY}` })
-            },
-            body: JSON.stringify({
-                prompt: prompt,
-                model: model,
-                response_format: 'b64_json',
-                size: options.size || '1024x1024'
-            })
+                'Accept': 'image/png,image/*'
+            }
         });
 
         if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.error?.message || `HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}`);
         }
 
-        const result = await response.json();
+        // L'API retourne directement l'image en binaire
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        if (result.data?.[0]?.b64_json) {
-            return {
-                success: true,
-                provider: PROVIDERS.NANO_BANANA,
-                image: Buffer.from(result.data[0].b64_json, 'base64')
-            };
+        if (buffer.length < 1000) {
+            throw new Error('Image reçue trop petite, génération probable échouée');
         }
 
-        throw new Error('Aucune image reçue de Nano Banana');
+        return {
+            success: true,
+            provider: PROVIDERS.POLLINATIONS,
+            image: buffer
+        };
     } catch (error) {
-        console.error('[NanoBanana] Erreur:', error.message);
+        console.error('[Pollinations] Erreur:', error.message);
         return { success: false, error: error.message };
     }
 }
+
 
 /**
  * Génère une image via Hugging Face
@@ -164,7 +168,7 @@ async function generateWithHuggingFace(prompt, options = {}) {
             try {
                 const errorData = await response.json();
                 errorMsg = errorData.error?.message || errorData.error || errorMsg;
-            } catch (e) {}
+            } catch (e) { }
             throw new Error(errorMsg);
         }
 
@@ -208,9 +212,10 @@ async function generateImage(prompt, options = {}) {
 
         let result;
         switch (providerId) {
-            case PROVIDERS.NANO_BANANA:
-                result = await generateWithNanoBanana(fullPrompt, { ...options, premium });
+            case PROVIDERS.POLLINATIONS:
+                result = await generateWithPollinations(fullPrompt, options);
                 break;
+
             case PROVIDERS.HUGGINGFACE:
                 result = await generateWithHuggingFace(fullPrompt, options);
                 break;

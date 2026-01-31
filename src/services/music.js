@@ -64,8 +64,8 @@ function getNodes() {
 
     // Nœuds publics gratuits comme fallback ultime
     const publicNodes = [
-        { name: 'PublicNode1', url: 'lavalink.devamop.in:443', auth: 'DevamOP', secure: true },
-        { name: 'PublicNode2', url: 'lavalink.jirayu.net:13592', auth: 'youshallnotpass', secure: false }
+        { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
+        { name: 'PublicNode1', url: 'lavalink.devamop.in:443', auth: 'DevamOP', secure: true }
     ];
 
     // Ajouter les nœuds publics seulement si aucun nœud n'est configuré
@@ -168,7 +168,7 @@ const initMusic = (client) => {
             // Supprimer l'ancien message de lecture si existant
             const oldMessage = player.data.get('nowPlayingMessage');
             if (oldMessage) {
-                oldMessage.delete().catch(() => {});
+                oldMessage.delete().catch(() => { });
             }
 
             const newMessage = await channel.send({
@@ -197,7 +197,7 @@ const initMusic = (client) => {
         // Nettoyer le message de lecture
         const oldMessage = player.data.get('nowPlayingMessage');
         if (oldMessage) {
-            oldMessage.delete().catch(() => {});
+            oldMessage.delete().catch(() => { });
         }
     });
 
