@@ -41,19 +41,44 @@ module.exports = {
             const embed = message.embeds[0];
             const description = embed.description || '';
 
-            // Regex pour détecter les mentions brutes qui n'ont pas été résolues (souvent <@ID> dans une string d'embed)
-            // On cherche le motif Bienvenue suivi de <@...
-            const match = description.match(/<@!?(\d+)>/);
-            if (description.includes('Bienvenue') && match) {
+            // Regex for any user mention format: <@123> or <@!123>
+            const mentionRegex = /<@!?(\d+)>/g;
+            const matches = [...description.matchAll(mentionRegex)];
+
+            if (description.includes('Bienvenue') && matches.length > 0) {
                 try {
-                    const userId = match[1];
-                    await interaction.client.users.fetch(userId).catch(() => null);
+                    let newDescription = description;
+                    let hasChanges = false;
 
-                    const newDescription = description.includes(' <@!') ?
-                        description.replace(/<@!(\d+)>/, `<@$1>`) :
-                        description.replace(/<@(\d+)>/, `<@!$1>`);
+                    for (const match of matches) {
+                        const fullMatch = match[0]; // <@123> or <@!123>
+                        const userId = match[1];    // 123
 
-                    const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription + ' ');
+                        // 1. Force Cache Refresh (Critical!)
+                        await interaction.guild.members.fetch(userId).catch(() => null);
+
+                        // 2. Normalize to standard <@ID> format (Removes <@! if present)
+                        const standardMention = `<@${userId}>`;
+
+                        // We replace occurrences. Even if it was already correct, 
+                        // we might want to force an update.
+                        if (fullMatch !== standardMention) {
+                            newDescription = newDescription.replace(fullMatch, standardMention);
+                            hasChanges = true;
+                        }
+                    }
+
+                    // 3. Force update even if text is identical (to trigger client re-render with new cache)
+                    // We toggle a zero-width space or standard space at the end
+                    if (!hasChanges) {
+                        if (newDescription.endsWith(' ')) {
+                            newDescription = newDescription.trimEnd(); // Remove space
+                        } else {
+                            newDescription = newDescription + ' '; // Add space
+                        }
+                    }
+
+                    const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription);
                     await message.edit({ embeds: [newEmbed] });
                     fixedCount++;
                 } catch (error) {

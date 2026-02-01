@@ -50,7 +50,7 @@ module.exports = {
 
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor(embedColor)
-                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, <@${member.id}> !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
+                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, ${member} !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
                     .setTimestamp();
 
