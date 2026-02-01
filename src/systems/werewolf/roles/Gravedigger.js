@@ -6,11 +6,21 @@ class Gravedigger extends Role {
     }
 
     async onNight(game, player, unixTimestamp, thread) {
-        if (!game.lastDead) return;
+        if (!game.recentDeadIds || game.recentDeadIds.length === 0) {
+            return await thread.send(`⚰️ Tes fouilles sont infructueuses. Personne n'est mort récemment.`);
+        }
 
         try {
-            const teamMsg = game.lastDead.role.team === 'WEREWOLF' ? 'un **Loup-Garou** 🐺' : 'un **Villageois** 🛖';
-            return await thread.send(`⚰️ Tes fouilles révèlent que le dernier mort (<@${game.lastDead.id}>) était ${teamMsg}.`);
+            let report = "⚰️ **Rapport du Fossoyeur**\n";
+            for (const deadId of game.recentDeadIds) {
+                const deadPlayer = game.players.get(deadId);
+                if (deadPlayer) {
+                    const isWolf = deadPlayer.role.team === 'WEREWOLF' || deadPlayer.role.id === 'white_werewolf';
+                    const teamMsg = isWolf ? 'un **Loup-Garou** 🐺' : 'un **Villageois** 🛖';
+                    report += `- <@${deadPlayer.id}> était ${teamMsg}.\n`;
+                }
+            }
+            return await thread.send(report);
         } catch (e) {
             console.error(`Failed to send Gravedigger info to ${player.id}`, e);
         }

@@ -199,6 +199,15 @@ module.exports = {
                     return interaction.reply({ content: "❌ Cette partie n'existe plus.", flags: [64] });
                 }
 
+                // Vérification Powerless (Ancien tué par le village)
+                const player = game.players.get(interaction.user.id);
+                const roleActions = ['lg_witch_save', 'lg_witch_kill', 'lg_witch_kill_target', 'lg_seer_action', 'lg_guard_action', 'lg_crow_action', 'lg_pyro_gas_menu', 'lg_pyro_gas_select', 'lg_pyro_burn', 'lg_hunter_action', 'lg_mentalist_action', 'lg_heir_action', 'lg_wild_child_action'];
+                if (player && player.powerless && roleActions.includes(customId)) {
+                    if (player.role.team === 'VILLAGE') {
+                        return interaction.reply({ content: "❌ Tu as perdu tes pouvoirs car l'Ancien a été tué par le village.", flags: [64] });
+                    }
+                }
+
                 if (customId === 'lg_join') {
                     if (game.addPlayer(interaction.user)) {
                         await game.updateLobby();
@@ -309,7 +318,10 @@ module.exports = {
                     await interaction.message.delete();
                     await interaction.reply({ content: '🗑️ Image supprimée.', flags: [64] });
                 } else if (customId === 'lg_witch_save') {
-                    game.nightActions.witchAction = { type: 'SAVE', targetId: game.nightActions.wolfTargetId };
+                    if (game.state !== 'NIGHT_RESOLUTION') return interaction.reply({ content: '❌ Trop tard pour utiliser la potion.', flags: [64] });
+                    game.nightActions.witchActions.save = game.nightActions.wolfTargetId;
+                    const role = game.players.get(interaction.user.id).role;
+                    role.hasLifePotion = false;
                     await interaction.reply({ content: "🧪 Potion de vie utilisée !", flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_witch_kill') {
@@ -322,7 +334,7 @@ module.exports = {
                     const row = new ActionRowBuilder().addComponents(select);
                     await interaction.reply({ content: "🧪 Choisissez votre cible pour la potion de mort :", components: [row], flags: [64] });
                 } else if (customId === 'lg_witch_skip') {
-                    game.nightActions.witchAction = { type: 'SKIP' };
+                    game.nightActions.witchActions.skip = true;
                     await interaction.reply({ content: "🧪 Tu n'utilises aucune potion.", flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_dictator_takeover') {
@@ -332,10 +344,20 @@ module.exports = {
                         game.hasDictatorTakenOver = true;
                         await interaction.reply({ content: "👑 Tu as pris le pouvoir ! Tu seras le seul à voter aujourd'hui.", flags: [64] });
                         await game.thread.send(`👑 **<@${player.id}> a pris le pouvoir !** Préparez-vous à sa sentence.`);
+
+                        const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
+                        const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+                        const select = new StringSelectMenuBuilder()
+                            .setCustomId('lg_dictator_vote')
+                            .setPlaceholder('Qui condamner à mort ?')
+                            .addOptions(alivePlayers.map(p => ({ label: p.username, value: p.id })));
+                        const row = new ActionRowBuilder().addComponents(select);
+                        await interaction.followUp({ content: "⚖️ **À toi de juger.** Choisis ta victime :", components: [row], flags: [64] });
                     }
                 } else if (customId === 'lg_dictator_skip') {
                     await interaction.reply({ content: "👑 Tu décides de laisser le village voter aujourd'hui.", flags: [64] });
                 } else if (customId === 'lg_pyro_gas_menu') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Attends la nuit pour agir.', flags: [64] });
                     const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
                     const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
                     const select = new StringSelectMenuBuilder()
@@ -475,15 +497,26 @@ module.exports = {
                     return interaction.reply({ content: "❌ Impossible de trouver ta partie en cours. Elle est peut-être terminée.", flags: [64] });
                 }
 
+                // Vérification Powerless
+                const player = game.players.get(interaction.user.id);
+                const roleActions = ['lg_witch_save', 'lg_witch_kill', 'lg_witch_kill_target', 'lg_seer_action', 'lg_guard_action', 'lg_crow_action', 'lg_pyro_gas_menu', 'lg_pyro_gas_select', 'lg_pyro_burn', 'lg_hunter_action', 'lg_mentalist_action', 'lg_heir_action', 'lg_wild_child_action'];
+                if (player && player.powerless && roleActions.includes(customId)) {
+                    if (player.role.team === 'VILLAGE') {
+                        return interaction.reply({ content: "❌ Tu as perdu tes pouvoirs car l'Ancien a été tué par le village.", flags: [64] });
+                    }
+                }
+
                 if (customId === 'lg_set_composition') {
                     if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });
                     game.customRoles = values;
                     await interaction.reply({ content: `✅ Composition mise à jour ! (${values.length} rôles sélectionnés).`, flags: [64] });
                 } else if (customId === 'lg_wolf_vote') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Ce n\'est pas le moment de chasser.', flags: [64] });
                     game.nightActions.wolfVotes.set(interaction.user.id, values[0]);
                     await interaction.reply({ content: `🐺 Vote enregistré contre <@${values[0]}>.`, flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_seer_action') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ La boule de cristal est trouble le jour.', flags: [64] });
                     const target = game.players.get(values[0]);
                     game.nightActions.seerTargetId = values[0];
                     await interaction.reply({ content: `🔮 La boule de cristal révèle que <@${values[0]}> est : **${target.role.name}** !`, flags: [64] });
@@ -491,6 +524,7 @@ module.exports = {
                 } else if (customId === 'lg_mayor_vote') {
                     const candidateId = values[0];
                     const player = game.players.get(interaction.user.id);
+                    if (game.turn !== 1 || game.state !== 'NIGHT') return interaction.reply({ content: '❌ Les votes pour le Maire sont clos.', flags: [64] });
                     if (!player.isAlive) return interaction.reply({ content: '❌ Les morts ne votent pas !', flags: [64] });
 
                     player.mayorVote = candidateId;
@@ -500,7 +534,9 @@ module.exports = {
                     await game.thread.send(`🗳️ **${interaction.user.username}** a voté pour **${candidate.username}** pour être Maire !`);
 
                     await interaction.reply({ content: `✅ Vote pour ${candidate.username} enregistré.`, flags: [64] });
+                    await game.checkNightEnd();
                 } else if (customId === 'lg_village_vote') {
+                    if (game.state !== 'DAY_VOTING') return interaction.reply({ content: '❌ Ce n\'est pas le moment de voter.', flags: [64] });
                     const targetId = values[0];
                     const player = game.players.get(interaction.user.id);
                     if (!player.isAlive) return interaction.reply({ content: '❌ Les morts ne votent pas !', flags: [64] });
@@ -519,6 +555,7 @@ module.exports = {
 
                     await interaction.reply({ content: `✅ Vote contre ${target.username} enregistré.`, flags: [64] });
                 } else if (customId === 'lg_guard_action') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Tu ne peux monter la garde que la nuit.', flags: [64] });
                     game.nightActions.guardTargetId = values[0];
                     const role = game.players.get(interaction.user.id).role;
                     role.lastProtectedId = values[0];
@@ -534,10 +571,12 @@ module.exports = {
                     game.clearTimers();
                     await game.handleVillageVoteResult();
                 } else if (customId === 'lg_cupid_action') {
+                    if (game.state !== 'NIGHT' || game.turn !== 1) return interaction.reply({ content: '❌ Cupidon ne tire ses flèches qu\'au premier soir.', flags: [64] });
                     game.nightActions.cupidTargets = values;
                     await interaction.reply({ content: `💘 Tu as lié <@${values[0]}> et <@${values[1]}> par les liens du destin.`, flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_white_wolf_action') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ La faim du Loup Blanc ne s\'exprime que la nuit.', flags: [64] });
                     game.nightActions.whiteWolfTargetId = values[0];
                     if (values[0] !== 'skip') {
                         await interaction.reply({ content: `⚪ Tu dévoreras <@${values[0]}> cette nuit.`, flags: [64] });
@@ -546,18 +585,27 @@ module.exports = {
                     }
                     await game.checkNightEnd();
                 } else if (customId === 'lg_crow_action') {
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Le Corbeau ne sort que la nuit.', flags: [64] });
                     game.nightActions.crowTargetId = values[0];
                     await interaction.reply({ content: `🐦 La malédiction s'abat sur <@${values[0]}>.`, flags: [64] });
                     await game.checkNightEnd();
                 } else if (customId === 'lg_black_wolf_infection') {
+                    if (game.state !== 'NIGHT_RESOLUTION') return interaction.reply({ content: '❌ Le moment de l\'infection est passé.', flags: [64] });
                     game.nightActions.blackWolfInfectedId = values[0];
                     if (values[0] !== 'skip') {
+                        const target = game.players.get(values[0]);
+                        if (target && (target.role.team === 'WEREWOLF' || target.role.id === 'white_werewolf')) {
+                            return interaction.reply({ content: '❌ Tu ne peux pas infecter un membre de ta propre espèce !', flags: [64] });
+                        }
                         await interaction.reply({ content: `🖤 Tu as choisi d'infecter <@${values[0]}> !`, flags: [64] });
                     } else {
                         await interaction.reply({ content: `🖤 Tu as décidé de ne pas utiliser ton pouvoir ce soir.`, flags: [64] });
                     }
                     await game.checkNightEnd();
                 } else if (customId === 'lg_heir_action') {
+                    // Heir acts at NIGHT (turn 1 usually) or when triggered?
+                    // Code logic: Heir chooses protector at T1.
+                    if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Tu dois choisir ton protecteur la nuit.', flags: [64] });
                     const player = game.players.get(interaction.user.id);
                     if (player) player.role.targetId = values[0];
                     await interaction.reply({ content: `📜 Tes volontés sont scellées. Ton protecteur est <@${values[0]}>.`, flags: [64] });
@@ -567,19 +615,6 @@ module.exports = {
                     if (player) player.role.modelId = values[0];
                     await interaction.reply({ content: `🏹 Ton modèle est désormais <@${values[0]}>.`, flags: [64] });
                     await game.checkNightEnd();
-                } else if (customId === 'lg_pyro_gas_menu') {
-                    const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
-                    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
-                    const select = new StringSelectMenuBuilder()
-                        .setCustomId('lg_pyro_gas_select')
-                        .setPlaceholder('Choisir jusqu\'à 2 victimes')
-                        .setMinValues(1).setMaxValues(Math.min(2, alivePlayers.length))
-                        .addOptions(alivePlayers.map(p => ({ label: p.username, value: p.id })));
-                    await interaction.reply({ content: '🧴 Qui voulez-vous gazer ?', components: [new ActionRowBuilder().addComponents(select)], flags: [64] });
-                } else if (customId === 'lg_pyro_burn') {
-                    game.nightActions.pyroAction = 'BURN';
-                    await interaction.reply({ content: '🔥 **L\'INCENDIE SERA DÉCLENCHÉ CETTE NUIT !**', flags: [64] });
-                    await game.checkNightEnd();
                 } else if (customId === 'lg_pyro_gas_select') {
                     game.nightActions.pyroGasTargetIds = values;
                     game.nightActions.pyroAction = 'GAS';
@@ -587,33 +622,19 @@ module.exports = {
                     await game.checkNightEnd();
                 } else if (customId === 'lg_hunter_action') {
                     const victimId = values[0];
-                    await game.applyDeath(victimId);
                     await interaction.reply({ content: `🔫 Pan ! Tu as abattu <@${values[0]}> dans ton dernier souffle.`, flags: [64] });
+                    // Utiliser handleHunterAction pour gérer la pause/reprise du jeu
+                    await game.handleHunterAction(victimId);
                     await game.thread.send(`🔫 Un coup de feu retentit... Dans son dernier souffle, le Chasseur a abattu <@${values[0]}> qui était **${game.players.get(values[0]).role.name}**.`);
-                    if (game.state === 'DAY_VOTING' || game.state === 'NIGHT') {
-                        await game.checkWinCondition();
-                    }
-                } else if (customId === 'lg_witch_save') {
-                    game.nightActions.witchAction = { type: 'SAVE', targetId: game.nightActions.wolfTargetId };
-                    const role = game.players.get(interaction.user.id).role;
-                    role.hasLifePotion = false;
-                    await interaction.reply({ content: '🧪 Tu as utilisé ta potion de vie !', flags: [64] });
-                    await game.checkNightEnd();
-                } else if (customId === 'lg_witch_kill') {
-                    const alivePlayers = Array.from(game.players.values()).filter(p => p.isAlive && p.id !== interaction.user.id);
-                    const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
-                    const select = new StringSelectMenuBuilder()
-                        .setCustomId('lg_witch_kill_target')
-                        .setPlaceholder('Choisir une victime')
-                        .addOptions(alivePlayers.map(p => ({ label: p.username, value: p.id })));
-                    await interaction.reply({ content: '🧪 Qui voulez-vous empoisonner ?', components: [new ActionRowBuilder().addComponents(select)], flags: [64] });
-                } else if (customId === 'lg_witch_skip') {
-                    game.nightActions.witchAction = { type: 'SKIP' };
-                    await interaction.reply({ content: '🧪 Tu as décidé de ne pas agir.', flags: [64] });
-                    await game.checkNightEnd();
+                } else if (customId === 'lg_mayor_successor') {
+                    const successorId = values[0];
+                    game.mayorId = successorId;
+                    const successor = game.players.get(successorId);
+                    await interaction.reply({ content: `🎖️ Tu as transmis tes pouvoirs à <@${successorId}> !`, flags: [64] });
+                    await game.thread.send(`🎖️ Dans son dernier souffle, l'ancien Maire a désigné **${successor.username}** comme son successeur !`);
                 } else if (customId === 'lg_witch_kill_target') {
                     const victimId = values[0];
-                    game.nightActions.witchAction = { type: 'KILL', targetId: victimId };
+                    game.nightActions.witchActions.kill = victimId;
                     const role = game.players.get(interaction.user.id).role;
                     role.hasDeathPotion = false;
                     await interaction.reply({ content: `🧪 Tu as choisi d'éliminer <@${victimId}> !`, flags: [64] });

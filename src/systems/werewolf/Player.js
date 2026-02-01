@@ -10,6 +10,7 @@ class Player {
         this.lover = null; // Si Cupidon passe par là
         this.votes = 0; // Nombre de votes contre lui ce tour
         this.voteTarget = null; // Contre qui il a voté
+        this.powerless = false; // Perte de pouvoirs suite au sacrilège
     }
 
     assignRole(roleInstance) {

@@ -39,7 +39,7 @@ class Witch extends Role {
         row.addComponents(
             new ButtonBuilder()
                 .setCustomId('lg_witch_skip')
-                .setLabel('Ne rien faire')
+                .setLabel('Ne rien faire / Terminer')
                 .setStyle(ButtonStyle.Secondary)
         );
 
