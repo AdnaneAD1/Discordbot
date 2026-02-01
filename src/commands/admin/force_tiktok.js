@@ -49,16 +49,63 @@ module.exports = {
             const account = accountDoc.data();
             const accountId = accountDoc.id;
 
-            // 3. Récupérer les infos via oEmbed (La source fiable)
-            const oembedUrl = `https://www.tiktok.com/oembed?url=${url}`;
-            const oembedRes = await axios.get(oembedUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1' }
-            });
+            // 3. Récupérer les infos via oEmbed (La source fiable, mais avec fallback)
+            const randomUserAgents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            ];
 
-            const data = oembedRes.data;
-            const videoTitle = data.title || "Nouvelle vidéo disponible !";
-            const videoCover = data.thumbnail_url;
-            const authorName = data.author_name;
+            let videoTitle = "Nouvelle vidéo disponible !";
+            let videoCover = null;
+            let authorName = account.nickname || username;
+            let userAvatar = account.userAvatar || 'https://sf-static.six-group.com/images/tiktok-logo.png';
+
+            try {
+                // Tentaiva 1: oEmbed (Rapide et propre)
+                const oembedUrl = `https://www.tiktok.com/oembed?url=${url}&v=${Date.now()}`;
+                const oembedRes = await axios.get(oembedUrl, {
+                    headers: {
+                        'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
+                        'Cache-Control': 'no-cache'
+                    },
+                    timeout: 4000
+                });
+
+                if (oembedRes.data) {
+                    const data = oembedRes.data;
+                    videoTitle = data.title || videoTitle;
+                    videoCover = data.thumbnail_url;
+                    authorName = data.author_name || authorName;
+                }
+            } catch (e) {
+                console.warn(`[ForceTikTok] oEmbed failed for ${url}, trying HTML scrap fallback...`);
+
+                // Tentative 2: Scraping HTML (Fallback "Sigma")
+                try {
+                    const htmlRes = await axios.get(url, {
+                        headers: {
+                            'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
+                            'Cache-Control': 'no-cache'
+                        },
+                        timeout: 5000
+                    });
+                    const html = htmlRes.data;
+
+                    // Extract OG Image (Cover)
+                    const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+                    if (ogImage) videoCover = ogImage;
+
+                    // Extract Title
+                    const ogTitle = html.match(/<meta property="og:description" content="([^"]+)"/)?.[1] ||
+                        html.match(/<title>([^<]+)<\/title>/)?.[1];
+                    if (ogTitle) videoTitle = ogTitle.replace(/ \| TikTok$/, "");
+
+                } catch (htmlError) {
+                    console.error(`[ForceTikTok] HTML fallback failed too: ${htmlError.message}`);
+                }
+            }
 
             // 4. Envoyer la notification sur Discord
             const channel = interaction.client.channels.cache.get(account.channelId);
@@ -66,17 +113,13 @@ module.exports = {
                 return interaction.editReply(`❌ Le salon de notification configuré (${account.channelId}) est introuvable.`);
             }
 
-            // Récupérer avatar user si possible (depuis les data du bot ou une image par défaut)
-            // On ne peut pas facilement avoir l'avatar via oEmbed, on utilise le logo TikTok ou une image générique
-            const userAvatar = 'https://sf-static.six-group.com/images/tiktok-logo.png';
-
             const embed = new EmbedBuilder()
                 .setColor('#ff0050')
                 .setTitle(`🎬 ${authorName} a posté une nouvelle vidéo sur TikTok !`)
                 .setDescription(videoTitle)
                 .setURL(url)
                 .setThumbnail(userAvatar)
-                .setFooter({ text: 'TikTok • Notification Forcée', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
+                .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
                 .setTimestamp();
 
             if (videoCover) embed.setImage(videoCover);
@@ -95,10 +138,9 @@ module.exports = {
             });
 
             // 5. Mettre à jour la DB pour éviter un doublon futur
-            // On met à jour lastPostId avec cet ID
             await db.collection('socials').doc(accountId).update({ lastPostId: videoId });
 
-            await interaction.editReply(`✅ **Notification envoyée avec succès !**\nID Vidéo: \`${videoId}\`\nBase de données mise à jour.`);
+            await interaction.editReply(`✅ **Notification envoyée avec succès !**\nAuteur: **${authorName}**\nID Vidéo: \`${videoId}\`\nBase de données mise à jour.`);
 
         } catch (error) {
             console.error(error);

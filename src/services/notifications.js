@@ -140,6 +140,9 @@ const checkTikTok = async (client, account) => {
 
             // Went LIVE (First announcement)
             if (isLive && !account.isLive) {
+                // Update avatar in DB to keep it fresh for manual commands
+                await db.collection('socials').doc(account.id).update({ userAvatar });
+
                 if (account.isLive === undefined) {
                     // Initialize for first time without spamming
                     await db.collection('socials').doc(account.id).update({ isLive: true, lastLiveMessageTime: now });
@@ -421,7 +424,10 @@ const checkTikTok = async (client, account) => {
                             components: [row]
                         });
 
-                        await db.collection('socials').doc(account.id).update({ lastPostId: latestVideoId });
+                        await db.collection('socials').doc(account.id).update({
+                            lastPostId: latestVideoId,
+                            userAvatar: userAvatar // Keep avatar fresh
+                        });
                         console.log(`[TikTok-Post] Notification sent and DB updated for ${username}`);
                     }
                 }

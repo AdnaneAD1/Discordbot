@@ -37,7 +37,7 @@ module.exports = {
         let botMessagesFound = 0;
 
         for (const message of messages.values()) {
-            // Check if it's a bot message (accept any bot for the fix command)
+            // Analyser tout message de bot avec embed
             if (!message.author.bot || message.embeds.length === 0) continue;
             botMessagesFound++;
 
@@ -46,37 +46,37 @@ module.exports = {
             const description = embed.description || '';
             const fullText = (title + description).toLowerCase();
 
-            // Regex for any user mention format: <@123> or <@!123>
+            // Regex pour capturer l'ID de n'importe quelle mention
             const mentionRegex = /<@!?(\d+)>/g;
             const matches = [...description.matchAll(mentionRegex)];
 
-            // Match "bienvenue" or "welcome" (case insensitive)
             if ((fullText.includes('bienvenue') || fullText.includes('welcome')) && matches.length > 0) {
                 try {
                     let newDescription = description;
-                    let hasChanges = false;
+                    let hasResolvedAny = false;
 
                     for (const match of matches) {
-                        const fullMatch = match[0];
                         const userId = match[1];
 
-                        // 1. Force Cache Refresh
-                        await interaction.guild.members.fetch(userId).catch(() => null);
+                        // 1. Fetch FORCÉ depuis l'API (pas seulement le cache) pour peupler le client
+                        const member = await interaction.guild.members.fetch(userId).catch(() => null);
 
-                        // 2. Normalize to standard <@ID>
-                        const standardMention = `<@${userId}>`;
-
-                        if (fullMatch !== standardMention) {
-                            newDescription = newDescription.replaceAll(fullMatch, standardMention);
-                            hasChanges = true;
+                        if (member) {
+                            // On remplace par la mention standard <@ID>
+                            const standardMention = `<@${userId}>`;
+                            if (match[0] !== standardMention) {
+                                newDescription = newDescription.replaceAll(match[0], standardMention);
+                            }
+                            hasResolvedAny = true;
                         }
                     }
 
-                    // 3. Force update (toggle space)
-                    if (newDescription.endsWith(' ')) {
-                        newDescription = newDescription.slice(0, -1);
+                    // 2. TRIGGER RE-RENDER : On change l'embed pour forcer Discord à re-parser les mentions
+                    // On alterne un espace à la fin pour que Discord voie une "vraie" modification
+                    if (newDescription.endsWith(' \u200b')) {
+                        newDescription = newDescription.replace(' \u200b', '');
                     } else {
-                        newDescription = newDescription + ' ';
+                        newDescription = newDescription + ' \u200b';
                     }
 
                     const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription);
