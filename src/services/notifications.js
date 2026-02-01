@@ -120,11 +120,16 @@ const checkTikTok = async (client, account) => {
             liveRoom?.owner?.avatarLarger ||
             getMeta("og:image") ||
             user?.avatarLarger;
-        const userAvatar = user?.avatarLarger || 'https://sf-static.six-group.com/images/tiktok-logo.png';
+        const userAvatar = user?.avatarLarger || 'https://cdn.pixabay.com/photo/2021/01/30/06/42/tiktok-5962992_1280.png';
         const viewerCount = liveRoom?.viewerCount || 0;
         const startTime = liveRoom?.startTime; // Unix timestamp in seconds
 
-        // Calculate Duration
+        // SAUVEGARDE SYSTÉMATIQUE DE L'AVATAR (pour les commandes manuelles)
+        if (userAvatar && userAvatar !== 'https://cdn.pixabay.com/photo/2021/01/30/06/42/tiktok-5962992_1280.png') {
+            await db.collection('socials').doc(account.id).update({ userAvatar }).catch(() => null);
+        }
+
+        // --- LIVE NOTIFICATION LOGIC ---
         let durationText = "En direct";
         const now = Date.now();
         if (startTime) {
@@ -140,9 +145,6 @@ const checkTikTok = async (client, account) => {
 
             // Went LIVE (First announcement)
             if (isLive && !account.isLive) {
-                // Update avatar in DB to keep it fresh for manual commands
-                await db.collection('socials').doc(account.id).update({ userAvatar });
-
                 if (account.isLive === undefined) {
                     // Initialize for first time without spamming
                     await db.collection('socials').doc(account.id).update({ isLive: true, lastLiveMessageTime: now });
@@ -398,6 +400,9 @@ const checkTikTok = async (client, account) => {
                         }
                     }
 
+                    // Fallback ULTIME : Utiliser l'avatar si pas de couverture
+                    if (!videoCover) videoCover = userAvatar;
+
                     const channel = client.channels.cache.get(account.channelId);
                     if (channel) {
                         const embed = new EmbedBuilder()
@@ -406,7 +411,7 @@ const checkTikTok = async (client, account) => {
                             .setDescription(videoTitle)
                             .setURL(`https://www.tiktok.com/@${username}/video/${latestVideoId}`)
                             .setThumbnail(userAvatar)
-                            .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
+                            .setFooter({ text: 'TikTok', iconURL: 'https://cdn.pixabay.com/photo/2021/01/30/06/42/tiktok-5962992_1280.png' })
                             .setTimestamp();
 
                         if (videoCover) embed.setImage(videoCover);

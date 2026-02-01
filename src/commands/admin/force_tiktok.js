@@ -59,11 +59,14 @@ module.exports = {
 
             let videoTitle = "Nouvelle vidéo disponible !";
             let videoCover = null;
-            let authorName = account.nickname || username;
-            let userAvatar = account.userAvatar || 'https://sf-static.six-group.com/images/tiktok-logo.png';
+
+            // On s'assure que authorName ne soit JAMAIS juste "@"
+            let authorName = (account.nickname && account.nickname !== '@') ? account.nickname : username.replace('@', '');
+            let userAvatar = account.userAvatar || 'https://cdn.pixabay.com/photo/2021/01/30/06/42/tiktok-5962992_1280.png';
+            const defaultLogo = 'https://cdn.pixabay.com/photo/2021/01/30/06/42/tiktok-5962992_1280.png';
 
             try {
-                // Tentaiva 1: oEmbed (Rapide et propre)
+                // Tentative 1: oEmbed (Rapide et propre)
                 const oembedUrl = `https://www.tiktok.com/oembed?url=${url}&v=${Date.now()}`;
                 const oembedRes = await axios.get(oembedUrl, {
                     headers: {
@@ -73,39 +76,58 @@ module.exports = {
                     timeout: 4000
                 });
 
-                if (oembedRes.data) {
-                    const data = oembedRes.data;
-                    videoTitle = data.title || videoTitle;
-                    videoCover = data.thumbnail_url;
-                    authorName = data.author_name || authorName;
+                if (oembedRes.data && oembedRes.data.author_name) {
+                    authorName = oembedRes.data.author_name;
+                    videoTitle = oembedRes.data.title || videoTitle;
+                    videoCover = oembedRes.data.thumbnail_url;
                 }
             } catch (e) {
                 console.warn(`[ForceTikTok] oEmbed failed for ${url}, trying HTML scrap fallback...`);
 
-                // Tentative 2: Scraping HTML (Fallback "Sigma")
-                try {
-                    const htmlRes = await axios.get(url, {
-                        headers: {
-                            'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
-                            'Cache-Control': 'no-cache'
-                        },
-                        timeout: 5000
-                    });
-                    const html = htmlRes.data;
+                // Tentative 2: Scraping HTML (Deep fallback)
+                // On essaie deux URLs différentes pour maximiser les chances
+                const trialUrls = [
+                    `https://www.tiktok.com/embed/v2/${videoId}`,
+                    url
+                ];
 
-                    // Extract OG Image (Cover)
-                    const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
-                    if (ogImage) videoCover = ogImage;
+                for (const trialUrl of trialUrls) {
+                    if (videoCover) break;
+                    try {
+                        const htmlRes = await axios.get(trialUrl, {
+                            headers: {
+                                'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
+                                'Cache-Control': 'no-cache'
+                            },
+                            timeout: 5000
+                        });
+                        const html = htmlRes.data;
 
-                    // Extract Title
-                    const ogTitle = html.match(/<meta property="og:description" content="([^"]+)"/)?.[1] ||
-                        html.match(/<title>([^<]+)<\/title>/)?.[1];
-                    if (ogTitle) videoTitle = ogTitle.replace(/ \| TikTok$/, "");
+                        // Plusieurs patterns pour la couverture
+                        const coverMatch =
+                            html.match(/"poster":"([^"]+)"/) ||
+                            html.match(/<meta property="og:image" content="([^"]+)"/) ||
+                            html.match(/"cover":"([^"]+)"/);
 
-                } catch (htmlError) {
-                    console.error(`[ForceTikTok] HTML fallback failed too: ${htmlError.message}`);
+                        if (coverMatch) {
+                            videoCover = coverMatch[1].replace(/\\u002f/g, '/').replace(/\\u002F/g, '/').replace(/&amp;/g, '&');
+                        }
+
+                        if (videoTitle === "Nouvelle vidéo disponible !") {
+                            const titleMatch = html.match(/<title>([^<]+)<\/title>/) || html.match(/"title":"([^"]+)"/);
+                            if (titleMatch) videoTitle = titleMatch[1].split(' | TikTok')[0].replace(/\\u0020/g, ' ');
+                        }
+                    } catch (err) { continue; }
                 }
             }
+
+            // Nettoyage final
+            authorName = authorName.replace(/^@/, '').trim();
+            if (!authorName) authorName = username.replace('@', '');
+
+            // Fallback ULTIME pour l'image ( Point n°2 )
+            // Si aucune miniature n'a été trouvée, on utilise la photo de profil comme grande image
+            if (!videoCover) videoCover = userAvatar;
 
             // 4. Envoyer la notification sur Discord
             const channel = interaction.client.channels.cache.get(account.channelId);
@@ -118,8 +140,8 @@ module.exports = {
                 .setTitle(`🎬 ${authorName} a posté une nouvelle vidéo sur TikTok !`)
                 .setDescription(videoTitle)
                 .setURL(url)
-                .setThumbnail(userAvatar)
-                .setFooter({ text: 'TikTok', iconURL: 'https://sf-static.six-group.com/images/tiktok-logo.png' })
+                .setThumbnail(userAvatar || defaultLogo)
+                .setFooter({ text: 'TikTok', iconURL: defaultLogo })
                 .setTimestamp();
 
             if (videoCover) embed.setImage(videoCover);
