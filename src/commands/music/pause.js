@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getExistingPlayer } = require('../../services/music');
 
 module.exports = {
@@ -9,7 +9,7 @@ module.exports = {
         const player = getExistingPlayer(interaction.guild.id);
 
         if (!player) {
-            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', flags: MessageFlags.Ephemeral });
         }
 
         const isPaused = player.connection.paused;

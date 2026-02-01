@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getPlayer, search, playTrack, isMusicAvailable } = require('../../services/music');
 
 module.exports = {
@@ -13,7 +13,7 @@ module.exports = {
         if (!isMusicAvailable()) {
             return interaction.reply({
                 content: '❌ Le système musical est temporairement indisponible.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -21,7 +21,7 @@ module.exports = {
         if (!voiceChannel) {
             return interaction.reply({
                 content: '❌ Tu dois être dans un salon vocal !',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 

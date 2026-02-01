@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getExistingPlayer } = require('../../services/music');
 
 module.exports = {
@@ -19,7 +19,7 @@ module.exports = {
         const mode = interaction.options.getString('mode');
 
         if (!player) {
-            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', flags: MessageFlags.Ephemeral });
         }
 
         player.loop = mode;

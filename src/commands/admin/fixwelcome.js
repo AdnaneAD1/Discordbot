@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { db } = require('../../services/firebase');
 
 module.exports = {
@@ -12,7 +12,7 @@ module.exports = {
                 .setMinValue(1)
                 .setMaxValue(100)),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         const guildId = interaction.guild.id;
         const limit = interaction.options.getInteger('limit') || 50;

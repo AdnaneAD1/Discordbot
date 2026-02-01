@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getExistingPlayer, playTrack } = require('../../services/music');
 
 module.exports = {
@@ -9,12 +9,12 @@ module.exports = {
         const player = getExistingPlayer(interaction.guild.id);
 
         if (!player) {
-            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', ephemeral: true });
+            return interaction.reply({ content: '❌ Aucun morceau n\'est en cours de lecture.', flags: MessageFlags.Ephemeral });
         }
 
         const prevTrack = player.previousTrack();
         if (!prevTrack) {
-            return interaction.reply({ content: '❌ Pas de morceau précédent dans l\'historique.', ephemeral: true });
+            return interaction.reply({ content: '❌ Pas de morceau précédent dans l\'historique.', flags: MessageFlags.Ephemeral });
         }
 
         await playTrack(player, prevTrack);

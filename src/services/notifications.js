@@ -226,64 +226,84 @@ const checkTikTok = async (client, account) => {
 
         // --- 2. NEW POST DETECTION (Embed Method) ---
         try {
-            console.log(`[TikTok-Post] Checking posts (Embed Method) for ${username}...`);
+            // --- SIGMA DETECTION LOGIC ---
+            const randomUserAgents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            ];
 
-            // Fetch Embed Page (Lighter, more stable, often less blocked)
-            // Add cache busting to ensure we get the latest version
             const embedUrl = `https://www.tiktok.com/embed/@${username}?t=${Date.now()}`;
             const embedResponse = await axios.get(embedUrl, {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+                    'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
                     'Accept': 'text/html,application/xhtml+xml',
                     'Accept-Language': 'fr-FR',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
                     'Expires': '0'
                 },
-                timeout: 5000
+                timeout: 7000
             });
+
             const embedHtml = embedResponse.data;
 
-            // --- 2. NEW POST DETECTION (Optimized) ---
+            // Health check: If HTML is too short, we might be blocked or getting an empty state
+            if (embedHtml.length < 5000) {
+                console.warn(`[TikTok-Sigma] Warning: Low HTML length (${embedHtml.length}) for ${username}. Possible block.`);
+            }
 
             let potentialIds = [];
-            let embedData = null;
 
-            // A. Try to extract structured JSON data (Most reliable)
-            try {
-                // Look for JSON data scripts often found in Next.js/React hydration
-                const jsonMatch = embedHtml.match(/<script id="__FRONTEND_WEB_CONTEXT_ID__"[^>]*>([\s\S]*?)<\/script>/) ||
-                    embedHtml.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/) ||
-                    embedHtml.match(/<script[^>]*>self\.__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({[\s\S]*?});?<\/script>/);
+            // 1. Advanced JSON Extraction (The Graal)
+            const findIdsInJson = (obj) => {
+                let ids = [];
+                const search = (current) => {
+                    if (!current || typeof current !== 'object') return;
 
-                if (jsonMatch) {
-                    embedData = JSON.parse(jsonMatch[1]);
-                    // Navigate to item list: usually embedData.itemList or similar structure
-                    // Structure varies, catch errors if path invalid
-                    const items = embedData?.itemList || embedData?.['tiktok-embed']?.itemList;
-                    if (Array.isArray(items)) {
-                        potentialIds = items.map(item => item.id).filter(id => id);
-                        console.log(`[TikTok-Post] Found ${potentialIds.length} IDs via JSON injection.`);
+                    // Specific known paths
+                    if (current.itemModule) {
+                        ids = [...ids, ...Object.keys(current.itemModule)];
                     }
-                }
-            } catch (e) {
-                console.log(`[TikTok-Post] JSON parse failed, falling back to regex: ${e.message}`);
-            }
+                    if (Array.isArray(current.itemList)) {
+                        ids = [...ids, ...current.itemList.map(i => i.id).filter(id => id)];
+                    }
+                    if (Array.isArray(current.items)) {
+                        ids = [...ids, ...current.items.map(i => i.id).filter(id => id)];
+                    }
 
-            // B. Fallback to Regex if JSON failed or empty
-            if (potentialIds.length === 0) {
-                // We use a specific regex to avoid "related video" links if possible, but in raw HTML it's hard.
-                // The user suggestion was to limit scope, but without DOM parser, we stick to global regex
-                // but rely on Strict Verification below.
-                const videoIdMatches = [...embedHtml.matchAll(/\/video\/(\d{19,})/g)];
-                potentialIds = videoIdMatches.map(match => match[1]);
-            }
+                    // Recursion for deep structures
+                    for (const key in current) {
+                        if (key !== 'parent' && typeof current[key] === 'object') {
+                            search(current[key]);
+                        }
+                    }
+                };
+                search(obj);
+                return [...new Set(ids)];
+            };
 
-            // C. Deduplicate and Sort Descending (Newest first)
-            const uniqueIds = [...new Set(potentialIds)].sort((a, b) => {
-                if (BigInt(a) < BigInt(b)) return 1;
-                if (BigInt(a) > BigInt(b)) return -1;
-                return 0;
+            const sigiData = extractJson(embedHtml, 'SIGI_STATE');
+            const universalData = extractJson(embedHtml, '__UNIVERSAL_DATA_FOR_REHYDRATION__');
+            const frontendData = extractJson(embedHtml, '__FRONTEND_WEB_CONTEXT_ID__');
+
+            if (sigiData) potentialIds = [...potentialIds, ...findIdsInJson(sigiData)];
+            if (universalData) potentialIds = [...potentialIds, ...findIdsInJson(universalData)];
+            if (frontendData) potentialIds = [...potentialIds, ...findIdsInJson(frontendData)];
+
+            // 2. Regex Fallback (Still useful for simple HTML structures)
+            const videoIdMatches = [...embedHtml.matchAll(/\/video\/(\d{19,})/g)];
+            const regexIds = videoIdMatches.map(match => match[1]);
+            potentialIds = [...new Set([...potentialIds, ...regexIds])];
+
+            console.log(`[TikTok-Sigma] Found ${potentialIds.length} candidate IDs for ${username}`);
+
+            // 3. Deduplicate and Sort Descending (Newest first)
+            const uniqueIds = potentialIds.sort((a, b) => {
+                try {
+                    return BigInt(b) > BigInt(a) ? 1 : -1;
+                } catch { return 0; }
             });
 
             let latestVideoId = null;
@@ -292,18 +312,19 @@ const checkTikTok = async (client, account) => {
             for (const candidateId of uniqueIds) {
                 if (latestVideoId) break;
 
-                // optimization: If we are already looking at IDs older than known lastPost, stop.
+                // Optimization: Skip known videos
                 if (account.lastPostId && BigInt(candidateId) <= BigInt(account.lastPostId)) {
-                    break; // Stop scanning older videos
+                    continue;
                 }
 
-                // Check ownership via oEmbed (Strict + Cache Busting)
+                // Check ownership via oEmbed (Strict + Extreme Cache Busting)
                 try {
-                    // Added &v=timestamp to force fresh lookup
                     const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${candidateId}&v=${Date.now()}`;
                     const oembedRes = await axios.get(oembedUrl, {
                         headers: {
-                            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+                            'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
                         },
                         timeout: 5000
                     });
@@ -350,9 +371,12 @@ const checkTikTok = async (client, account) => {
                     let videoTitle = "Nouvelle vidéo disponible !";
 
                     try {
-                        const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${latestVideoId}`;
+                        const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${latestVideoId}&v=${Date.now()}`;
                         const oembedRes = await axios.get(oembedUrl, {
-                            headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1' },
+                            headers: {
+                                'User-Agent': randomUserAgents[Math.floor(Math.random() * randomUserAgents.length)],
+                                'Cache-Control': 'no-cache'
+                            },
                             timeout: 5000
                         });
                         if (oembedRes.data) {

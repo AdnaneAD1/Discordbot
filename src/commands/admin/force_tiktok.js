@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const { db } = require('../../services/firebase');
 const axios = require('axios');
 
@@ -12,7 +12,7 @@ module.exports = {
                 .setDescription('Le lien de la vidéo TikTok (ex: https://www.tiktok.com/@user/video/...)')
                 .setRequired(true)),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         const url = interaction.options.getString('url');
 
