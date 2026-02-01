@@ -35,6 +35,8 @@ module.exports = {
         const messages = await channel.messages.fetch({ limit });
         let fixedCount = 0;
         let botMessagesFound = 0;
+        let membersResolved = 0;
+        let membersNotFound = 0;
 
         for (const message of messages.values()) {
             // Analyser tout message de bot avec embed
@@ -53,41 +55,55 @@ module.exports = {
             if ((fullText.includes('bienvenue') || fullText.includes('welcome')) && matches.length > 0) {
                 try {
                     let newDescription = description;
-                    let hasResolvedAny = false;
+                    let hasResolvedForThisMessage = false;
 
                     for (const match of matches) {
                         const userId = match[1];
 
-                        // 1. Fetch FORCÉ depuis l'API (pas seulement le cache) pour peupler le client
-                        const member = await interaction.guild.members.fetch(userId).catch(() => null);
-
-                        if (member) {
-                            // On remplace par la mention standard <@ID>
-                            const standardMention = `<@${userId}>`;
-                            if (match[0] !== standardMention) {
-                                newDescription = newDescription.replaceAll(match[0], standardMention);
+                        // 1. Fetch FORCÉ depuis l'API (pas seulement le cache)
+                        try {
+                            const member = await interaction.guild.members.fetch(userId);
+                            if (member) {
+                                membersResolved++;
+                                // Normalisation
+                                const standardMention = `<@${userId}>`;
+                                if (match[0] !== standardMention) {
+                                    newDescription = newDescription.replaceAll(match[0], standardMention);
+                                }
+                                hasResolvedForThisMessage = true;
                             }
-                            hasResolvedAny = true;
+                        } catch (e) {
+                            membersNotFound++;
+                            console.log(`[FixWelcome] Membre ${userId} introuvable (quitté).`);
                         }
                     }
 
-                    // 2. TRIGGER RE-RENDER : On change l'embed pour forcer Discord à re-parser les mentions
-                    // On alterne un espace à la fin pour que Discord voie une "vraie" modification
-                    if (newDescription.endsWith(' \u200b')) {
-                        newDescription = newDescription.replace(' \u200b', '');
-                    } else {
-                        newDescription = newDescription + ' \u200b';
-                    }
+                    // 2. TRIGGER RE-RENDER : Toggling invisible character + adding content mention
+                    if (hasResolvedForThisMessage) {
+                        // Extraire le premier ID résolu pour le contenu du message (force le client à parser)
+                        const firstMentionId = matches[0][1];
 
-                    const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription);
-                    await message.edit({ embeds: [newEmbed] });
-                    fixedCount++;
+                        if (newDescription.includes('\u200b')) {
+                            newDescription = newDescription.replace(/\u200b/g, '');
+                        } else {
+                            newDescription = newDescription + '\u200b';
+                        }
+
+                        const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription);
+                        await message.edit({ content: `<@${firstMentionId}>`, embeds: [newEmbed] });
+                        fixedCount++;
+                    }
                 } catch (error) {
                     console.error(`[FixWelcome] Erreur sur message ${message.id}:`, error);
                 }
             }
         }
 
-        return interaction.editReply(`✅ Analyse terminée sur les **${messages.size}** derniers messages de <#${welcomeChannelId}>.\n- Messages de bots trouvés : **${botMessagesFound}**\n- Messages de bienvenue rafraîchis : **${fixedCount}**`);
+        return interaction.editReply(`✅ **Analyse terminée sur les ${messages.size} derniers messages de <#${welcomeChannelId}>.**\n\n` +
+            `• Messages de bots trouvés : \`${botMessagesFound}\`\n` +
+            `• Messages de bienvenue rafraîchis : \`${fixedCount}\`\n` +
+            `• Mentions résolues (membres présents) : \`${membersResolved}\`\n` +
+            `• Mentions inconnues (membres partis) : \`${membersNotFound}\`\n\n` +
+            `*Si les pseudos ne s'affichent toujours pas pour les membres présents, il s'agit d'un délai de cache Discord.*`);
     },
 };

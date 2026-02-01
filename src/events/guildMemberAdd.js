@@ -56,7 +56,7 @@ module.exports = {
 
                 // Petite attente pour laisser au client Discord le temps de résoudre la mention
                 setTimeout(() => {
-                    channel.send({ embeds: [welcomeEmbed] }).catch(console.error);
+                    channel.send({ content: `${member}`, embeds: [welcomeEmbed] }).catch(console.error);
                 }, 1500);
             }
         }
