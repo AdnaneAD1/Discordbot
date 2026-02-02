@@ -119,12 +119,15 @@ class Game {
     async updateLobby() {
         if (!this.lobbyMessage) return;
 
-        const playerList = Array.from(this.players.values()).map(p => `<@${p.id}>`).join('\n');
+        // On utilise Nom + Mention pour être sûr que ça s'affiche bien (Double Sécurité @ID)
+        const playerList = Array.from(this.players.values())
+            .map((p, i) => `**${i + 1}.** ${p.username} (<@${p.id}>)`)
+            .join('\n');
 
         const embed = new EmbedBuilder()
             .setColor('#2b2d31')
             .setTitle('🐺 Loup-Garou - Recrutement')
-            .setDescription(`Le Maire **${this.host.username}** recrute des villageois !\n\n**Joueurs (${this.players.size}/25) :**\n${playerList}`)
+            .setDescription(`Le Maire **${this.host.username}** recrute des villageois !\n\n**Joueurs (${this.players.size}/25) :**\n${playerList || "_Aucun joueur_"}`)
             .setThumbnail('https://cdn-icons-png.flaticon.com/512/1993/1993290.png');
 
         await this.lobbyMessage.edit({ embeds: [embed] });
@@ -136,24 +139,25 @@ class Game {
         }
 
         this.state = 'STARTING';
-        await this.lobbyMessage.delete().catch(() => { });
+        if (this.lobbyMessage) await this.lobbyMessage.delete().catch(() => { });
         this.channel.send("🎲 **Lancement de la partie... Distribution des rôles en cours !**");
 
-        // 1. Create Game Thread
+        // 1. Cache all players for proper mention resolution IMMEDIATELY
+        await cachePlayersForMentions(this.channel.guild, Array.from(this.players.values()));
+
+        // 2. Create Game Thread
         try {
             this.thread = await this.channel.threads.create({
                 name: `Loup-Garou - Partie de ${this.host.username}`,
                 autoArchiveDuration: 60,
                 reason: 'Partie de Loup-Garou'
             });
-            await this.thread.send(`📢 **La partie commence !** ${Array.from(this.players.values()).map(p => `<@${p.id}>`).join(', ')}`);
+            const playerMentions = Array.from(this.players.values()).map(p => `<@${p.id}>`).join(', ');
+            await this.thread.send(`📢 **La partie commence !** Bienvenue à : ${playerMentions}`);
         } catch (e) {
             console.error("Error creating thread:", e);
             return this.channel.send("❌ Impossible de créer le fil de discussion. Vérifiez mes permissions !");
         }
-
-        // 2. Cache all players for proper mention resolution
-        await cachePlayersForMentions(this.channel.guild, Array.from(this.players.values()));
 
         // 3. Distribute Roles
         const roles = this.generateRoles(this.players.size);
@@ -1199,29 +1203,6 @@ class Game {
         }
     }
 
-    startTimer(seconds, callback) {
-        this.clearTimers();
-        this.timerEnd = Date.now() + (seconds * 1000);
-        this.timer = setTimeout(async () => {
-            try {
-                await callback();
-            } catch (e) {
-                console.error("Timer callback error:", e);
-            }
-        }, seconds * 1000);
-    }
-
-    clearTimers() {
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
-        }
-        this.timerEnd = null;
-    }
-
-    async getRoundTimer() {
-        return 60;
-    }
 
     /**
      * Supprime les threads de jeu après un délai
@@ -1351,13 +1332,13 @@ class Game {
             .setColor('#7f8c8d')
             .setTimestamp();
 
-        // Reveal all roles - Utiliser les mentions Discord @
+        // Reveal all roles - Utiliser Nom + Mention pour parer au bug d'ID
         let revelation = "";
         for (const p of this.players.values()) {
-            let status = `${p.isAlive ? '✅' : '💀'} <@${p.id}> : **${p.role.name}**`;
+            let status = `${p.isAlive ? '✅' : '💀'} **${p.username}** (<@${p.id}>) : **${p.role.name}**`;
             if (p.lover) {
                 const lover = this.players.get(p.lover);
-                status += ` 💘 (Amoureux de <@${lover?.id}>)`;
+                status += ` 💘 (Amoureux de **${lover?.username || 'Inconnu'}**)`;
             }
             revelation += status + '\n';
         }

@@ -531,7 +531,7 @@ module.exports = {
 
                     // Vote Public
                     const candidate = game.players.get(candidateId);
-                    await game.thread.send(`🗳️ **${interaction.user.username}** a voté pour **${candidate.username}** pour être Maire !`);
+                    await game.thread.send(`🗳️ **${interaction.user.displayName}** a voté pour **${candidate.username}** pour être Maire !`);
 
                     await interaction.reply({ content: `✅ Vote pour ${candidate.username} enregistré.`, flags: [64] });
                     await game.checkNightEnd();
@@ -548,9 +548,9 @@ module.exports = {
                     // Vote Public
                     const target = game.players.get(targetId);
                     if (oldTarget && oldTarget.id !== targetId) {
-                        await game.thread.send(`🗳️ **${interaction.user.username}** a changé son vote : **${oldTarget.username}** ➔ **${target.username}**.`);
+                        await game.thread.send(`🗳️ **${interaction.user.displayName}** a changé son vote : **${oldTarget.username}** ➔ **${target.username}**.`);
                     } else if (!oldTarget) {
-                        await game.thread.send(`🗳️ **${interaction.user.username}** a voté contre **${target.username}**.`);
+                        await game.thread.send(`🗳️ **${interaction.user.displayName}** a voté contre **${target.username}**.`);
                     }
 
                     await interaction.reply({ content: `✅ Vote contre ${target.username} enregistré.`, flags: [64] });

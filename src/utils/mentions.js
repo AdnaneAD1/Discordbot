@@ -47,7 +47,7 @@ async function ensureMentions(guild, userIds) {
         // Fetch tous les membres en une seule requête si possible
         const missingIds = userIds.filter(id => !guild.members.cache.has(id));
         if (missingIds.length > 0) {
-            await guild.members.fetch({ user: missingIds }).catch(() => {});
+            await guild.members.fetch({ user: missingIds }).catch(() => { });
         }
     } catch (error) {
         // Continuer même en cas d'erreur
@@ -70,14 +70,12 @@ async function ensureMentions(guild, userIds) {
  */
 async function cachePlayersForMentions(guild, players) {
     const userIds = players.map(p => p.id);
-    const missingIds = userIds.filter(id => !guild.members.cache.has(id));
-
-    if (missingIds.length > 0) {
-        try {
-            await guild.members.fetch({ user: missingIds });
-        } catch (error) {
-            console.warn('[Mentions] Impossible de fetch certains membres:', error.message);
-        }
+    // On fetch même s'ils sont déjà là, pour être sûr d'avoir les données les plus fraîches 
+    // et forcer Discord à "réveiller" l'ID pour ce bot.
+    try {
+        await guild.members.fetch({ user: userIds });
+    } catch (error) {
+        console.warn('[Mentions] Impossible de fetch certains membres:', error.message);
     }
 }
 

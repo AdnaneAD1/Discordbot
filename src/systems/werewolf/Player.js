@@ -1,7 +1,7 @@
 class Player {
     constructor(user) {
         this.id = user.id;
-        this.username = user.username;
+        this.username = user.globalName || user.username;
         this.avatar = user.displayAvatarURL();
         this.role = null;
         this.isAlive = true;
