@@ -231,7 +231,7 @@ async function playTrack(player, track) {
             .addComponents(
                 new ButtonBuilder().setCustomId('music_queue').setEmoji('📝').setLabel('File').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('music_voteskip').setEmoji('🗳️').setLabel('Vote Skip').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('music_shuffle').setEmoji('🔀').setLabel('Mélanger').setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId('music_shuffle').setEmoji('🔀').setLabel('Aléatoire').setStyle(ButtonStyle.Secondary)
             );
 
         const embed = new EmbedBuilder()

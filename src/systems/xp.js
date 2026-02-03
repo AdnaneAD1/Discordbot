@@ -1,5 +1,10 @@
 const { db } = require('../services/firebase');
 
+// Caches
+const gradesCache = new Map(); // guildId -> grades
+const xpCooldowns = new Map(); // userId -> lastTimestamp
+const COOLDOWN_TIME = 60 * 1000; // 1 minute
+
 const DEFAULT_CODM_GRADES = [
     { name: "Recrue", xp: 0, emoji: "🥉" },
     { name: "Vétéran", xp: 200, emoji: "🎖️" },
@@ -13,14 +18,28 @@ const DEFAULT_CODM_GRADES = [
 async function addXP(member, amount, source = 'message') {
     if (member.user.bot || !member.guild) return;
 
+    // Check cooldown
+    const lastTimestamp = xpCooldowns.get(member.id);
+    const now = Date.now();
+    if (lastTimestamp && (now - lastTimestamp) < COOLDOWN_TIME) {
+        return; // Silent return for messages
+    }
+    xpCooldowns.set(member.id, now);
+
     const guildId = member.guild.id;
     const userRef = db.collection('guilds').doc(guildId).collection('users').doc(member.id);
     const userDoc = await userRef.get();
 
-    // Fetch dynamic grades or use defaults
-    const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
-    const configGrades = gradesDoc.exists ? gradesDoc.data().paliers : null;
-    const codmGrades = configGrades || DEFAULT_CODM_GRADES;
+    // Fetch dynamic grades or use defaults with Cache
+    let codmGrades = gradesCache.get(guildId);
+    if (!codmGrades) {
+        const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
+        codmGrades = gradesDoc.exists ? gradesDoc.data().paliers : DEFAULT_CODM_GRADES;
+        gradesCache.set(guildId, codmGrades);
+
+        // Cache management: Clear after 5 minutes to allow updates but reduce spam
+        setTimeout(() => gradesCache.delete(guildId), 5 * 60 * 1000);
+    }
 
     let userData = userDoc.exists ? userDoc.data() : { xp: 0, level: codmGrades[0].name };
 

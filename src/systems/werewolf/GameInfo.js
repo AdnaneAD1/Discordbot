@@ -23,7 +23,7 @@ const GameInfo = {
                     { name: '🐺 Loup-Garou', value: 'Le pilier du camp. Vote chaque nuit pour dévorer un villageois.' },
                     { name: '⚪ Loup Blanc', value: 'Traître parmi les siens. Peut dévorer un autre loup une nuit sur deux. Il gagne **SEUL** s\'il est le dernier survivant.' },
                     { name: '🖤 Loup Noir', value: 'Possède le pouvoir d\'**Infection**. Une fois par partie, il peut transformer la victime des loups en loup au lieu de la tuer.' },
-                    { name: '🧙‍♂️ Sorcier', value: 'Allié occulte. Il connaît l\'identité de tous les loups dès le début et gagne avec eux, mais n\'est pas un loup lui-même.' }
+                    { name: '🧙‍♂️ Sorcier', value: 'Allié occulte. Il connaît l\'identité de tous les loups dès le début et gagne avec eux, mais n\'est pas un loup-garou lui-même.' }
                 )
                 .setColor('#c0392b'),
 
@@ -31,7 +31,7 @@ const GameInfo = {
                 .setTitle('⚖️ LE CAMP DU VILLAGE')
                 .setDescription('Leur but : Identifier et éliminer tous les agents du chaos.')
                 .addFields(
-                    { name: '� Simple Villageois', value: 'N\'a pas de pouvoir spécial, mais son vote est crucial pour le village.' },
+                    { name: '👨‍🌾 Simple Villageois', value: 'N\'a pas de pouvoir spécial, mais son vote est crucial pour le village.' },
                     { name: '🔮 Voyante', value: 'Chaque nuit, elle observe l\'âme d\'un joueur pour découvrir son rôle exact.' },
                     { name: '🧪 Sorcière', value: 'Utilise ses potions : **Vie** pour ressusciter une victime, ou **Mort** pour éliminer un suspect.' },
                     { name: '🔫 Chasseur', value: 'Sa mort déclenche une ultime réaction : il peut abattre un joueur de son choix dans son dernier souffle.' },
@@ -62,16 +62,20 @@ const GameInfo = {
             .setTitle('⚙️ DÉROULEMENT D\'UNE PARTIE')
             .addFields(
                 { name: '1️⃣ Lancement', value: 'L\'hôte crée le lobby (`/lg create`). Les joueurs rejoignent puis l\'hôte lance la partie (`/lg start`).' },
-                { name: '2️⃣ Distribution', value: 'Ton rôle t\'est envoyé en **Message Privé (MP)** avec une image unique. **Consulte bien tes MPs !**' },
-                { name: '3️⃣ La Nuit', value: 'Les rôles spéciaux (Loups, Voyante...) agissent dans des fils privés. Vote en secret via les menus.' },
-                { name: '4️⃣ Le Jour', value: 'Le village débat publiquement dans ce salon. Utilisez le bouton de vote pour éliminer un suspect.' }
+                { name: '2️⃣ Distribution', value: 'Ton rôle t\'est envoyé dans un **Fil Privé Personnel** créé juste pour toi. **Vérifie bien ta liste de fils/canaux !**' },
+                { name: '3️⃣ La Nuit', value: 'Les rôles spéciaux (Loups, Voyante...) agissent dans leurs propres fils secrets. Utilise les **boutons et menus** pour choisir tes cibles.' },
+                { name: '4️⃣ Le Jour', value: 'Le village débat publiquement dans ce salon. Un bouton de vote apparaîtra pour éliminer un suspect avant la fin du temps.' }
             )
-            .setFooter({ text: '💡 Conseil : Le bluff est autorisé (et même recommandé pour les loups !)' })
+            .setFooter({ text: '💡 Conseil Sigma : Le fair-play est la clé. Ne révèle pas ton rôle en dehors des mécaniques du jeu !' })
             .setColor('#3498db');
     },
 
     async sendAll(channel) {
-        await channel.send({ embeds: [this.getRulesEmbed(), ...this.getRolesEmbed(), this.getFlowEmbed()] });
+        try {
+            await channel.send({ embeds: [this.getRulesEmbed(), ...this.getRolesEmbed(), this.getFlowEmbed()] });
+        } catch (e) {
+            console.error("[GameInfo] Error sending rules:", e);
+        }
     }
 };
 

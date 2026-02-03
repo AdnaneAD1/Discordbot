@@ -1,5 +1,4 @@
 const { Events, EmbedBuilder } = require('discord.js');
-const { db } = require('../services/firebase');
 
 module.exports = {
     name: Events.GuildMemberAdd,
@@ -15,23 +14,19 @@ module.exports = {
 
         console.log(`New member joined: ${member.user.tag}`);
 
-        // Fetch config from Firebase
+        // Fetch config via cache
         const guildId = member.guild.id;
-        const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
+        const configCache = require('../services/configCache');
 
-        // Récupérer les configs en parallèle pour plus de rapidité
-        const [configDoc, rolesDoc, generalDoc] = await Promise.all([
-            guildConfigRef.doc('channels').get(),
-            guildConfigRef.doc('roles').get(),
-            guildConfigRef.doc('general').get()
+        // Récupérer les configs via le cache
+        const [config, roles, general] = await Promise.all([
+            configCache.getConfig(guildId, 'channels'),
+            configCache.getConfig(guildId, 'roles'),
+            configCache.getConfig(guildId, 'general')
         ]);
 
-        const config = configDoc.data();
-        const roles = rolesDoc.data();
-        const general = generalDoc.data() || {};
-
-        const embedColor = general.embedColor || '#0099ff';
-        const serverName = general.serverName || 'Mister A';
+        const embedColor = general?.embedColor || '#0099ff';
+        const serverName = general?.serverName || 'Mister A';
 
         // Assign "Novice" role if exists
         if (roles && roles.defaultRoleId) {
@@ -50,7 +45,7 @@ module.exports = {
 
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor(embedColor)
-                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, ${member} !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
+                    .setDescription(`Bienvenue sur le serveur de **${serverName}**, **${member.user.displayName}** !\n\nN'oublie pas de lire le ${rulesChannel ? `<#${rulesChannel.id}>` : '#📋┃règlement'} pour bien commencer l'aventure.`)
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
                     .setTimestamp();
 

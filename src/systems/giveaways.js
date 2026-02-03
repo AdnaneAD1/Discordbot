@@ -81,8 +81,41 @@ async function startGiveaway(channel, prize, duration, winnerCount = 1, top10Onl
         ended: false,
     });
 
-    // Schedule end
-    setTimeout(() => endGiveaway(client, message.id), duration);
+    await db.collection('giveaways').doc(message.id).set({
+        messageId: message.id,
+        guildId: channel.guild.id,
+        channelId: channel.id,
+        prize,
+        endsAt,
+        winnerCount,
+        top10Only,
+        participants: [],
+        ended: false,
+    });
+
+    // We no longer use individual setTimeouts here as they aren't persistent.
+    // The central initGiveaways/periodic check handles this.
+}
+
+/**
+ * Initializes giveaways on startup by checking active ones.
+ * This ensures no giveaway is lost during a restart.
+ */
+async function initGiveaways(client) {
+    console.log('[Giveaways] Initializing active giveaways...');
+
+    // Check every 30 seconds
+    setInterval(async () => {
+        const now = new Date();
+        const activeGiveaways = await db.collection('giveaways')
+            .where('ended', '==', false)
+            .where('endsAt', '<=', now)
+            .get();
+
+        for (const doc of activeGiveaways.docs) {
+            await endGiveaway(client, doc.id);
+        }
+    }, 30000);
 }
 
 async function endGiveaway(client, messageId) {
@@ -170,4 +203,4 @@ async function handleEntry(interaction) {
     await interaction.reply({ content: '✅ Participation enregistrée ! Bonne chance.', flags: [64] });
 }
 
-module.exports = { startGiveaway, handleEntry };
+module.exports = { startGiveaway, handleEntry, initGiveaways };

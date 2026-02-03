@@ -62,12 +62,15 @@ for (const file of eventFiles) {
 }
 
 const { cleanupExpiredChallenges } = require('./systems/challenges');
+const { initGiveaways } = require('./systems/giveaways');
 
 client.once('clientReady', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
     // Nettoyage initial au démarrage
     cleanupExpiredChallenges(client);
+    initGiveaways(client);
+    client.werewolf.initGames();
 
     // Nettoyage toutes les 15 minutes
     setInterval(() => {

@@ -1,6 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { db } = require('../../services/firebase');
 const { CODM_GRADES } = require('../../systems/xp');
+
+const gradesCache = new Map(); // guildId -> grades
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -17,10 +18,14 @@ module.exports = {
             return interaction.reply({ content: 'Cet utilisateur n\'a pas encore d\'XP sur ce serveur.', flags: [64] });
         }
 
-        // Fetch dynamic grades or use defaults
-        const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
-        const configGrades = gradesDoc.exists ? gradesDoc.data().paliers : null;
-        const codmGrades = configGrades || CODM_GRADES;
+        // Fetch dynamic grades or use defaults with Cache
+        let codmGrades = gradesCache.get(guildId);
+        if (!codmGrades) {
+            const gradesDoc = await db.collection('guilds').doc(guildId).collection('config').doc('grades').get();
+            codmGrades = gradesDoc.exists ? gradesDoc.data().paliers : CODM_GRADES;
+            gradesCache.set(guildId, codmGrades);
+            setTimeout(() => gradesCache.delete(guildId), 5 * 60 * 1000);
+        }
 
         const data = userDoc.data();
         const xp = data.xp || 0;
@@ -40,6 +45,7 @@ module.exports = {
         const currentGradeObj = codmGrades.find(g => g.name === level);
         const currentEmoji = currentGradeObj?.emoji || '🎖️';
         const progress = nextGrade === "Max" ? 100 : (xp / nextXp) * 100;
+        const xpRemaining = nextGrade === "Max" ? 0 : nextXp - xp;
         const nextGradeObj = nextGrade === "Max" ? null : codmGrades.find(g => g.name === nextGrade);
         const nextEmoji = nextGradeObj?.emoji || '🎖️';
 
@@ -50,7 +56,7 @@ module.exports = {
             .addFields(
                 { name: 'Grade', value: `${currentEmoji} \`${level}\``, inline: true },
                 { name: 'XP Totale', value: `\`${xp}\` XP`, inline: true },
-                { name: 'Prochain Grade', value: nextGrade === "Max" ? "🚀 `Grade Maximum atteint !`" : `${nextEmoji} \`${nextGrade}\` (${nextXp} XP)`, inline: false },
+                { name: 'Prochain Grade', value: nextGrade === "Max" ? "🚀 `Grade Maximum atteint !`" : `${nextEmoji} \`${nextGrade}\` (\`${nextXp}\` XP)\n➡️ XP Restant : \`${xpRemaining}\``, inline: false },
             )
             .setFooter({ text: `Progression: ${progress.toFixed(1)}%` })
             .setTimestamp();

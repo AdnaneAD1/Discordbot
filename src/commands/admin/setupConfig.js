@@ -96,6 +96,16 @@ module.exports = {
             await guildConfigRef.doc('channels').set({ rankUpChannelId: options.rankUpChannel.id }, { merge: true });
             updates.push(`✅ Salon Grades : <#${options.rankUpChannel.id}>`);
         }
+
+        if (options.unverifiedRole) {
+            await guildConfigRef.doc('roles').set({ unverifiedRoleId: options.unverifiedRole.id }, { merge: true });
+            updates.push(`✅ Rôle Non-Vérifié : <@&${options.unverifiedRole.id}>`);
+        }
+
+        if (options.memberRole) {
+            await guildConfigRef.doc('roles').set({ memberRoleId: options.memberRole.id }, { merge: true });
+            updates.push(`✅ Rôle Membre : <@&${options.memberRole.id}>`);
+        }
         // Handle XP Grades customization
         if (options.xpVeteran || options.xpElite || options.xpPro || options.xpMaitre || options.xpGrandMaitre || options.xpLegendaire) {
             const gradesDoc = await guildConfigRef.doc('grades').get();

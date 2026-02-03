@@ -65,11 +65,8 @@ module.exports = {
                             const member = await interaction.guild.members.fetch(userId);
                             if (member) {
                                 membersResolved++;
-                                // Normalisation
-                                const standardMention = `<@${userId}>`;
-                                if (match[0] !== standardMention) {
-                                    newDescription = newDescription.replaceAll(match[0], standardMention);
-                                }
+                                // Remplacer la mention par le nom d'affichage en gras
+                                newDescription = newDescription.replaceAll(match[0], `**${member.displayName}**`);
                                 hasResolvedForThisMessage = true;
                             }
                         } catch (e) {

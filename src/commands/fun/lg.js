@@ -13,16 +13,20 @@ module.exports = {
                 .setDescription('Forcer le démarrage de la partie'))
         .addSubcommand(sub =>
             sub.setName('stop')
-                .setDescription('Arrêter la partie en cours')),
+                .setDescription('Arrêter la partie en cours'))
+        .addSubcommand(sub =>
+            sub.setName('rules')
+                .setDescription('Afficher le guide complet du jeu')),
 
     async execute(interaction) {
-        // Accès au manager via client (sera attaché dans index.js principal)
         const manager = interaction.client.werewolf;
         const subcommand = interaction.options.getSubcommand();
 
-        // Vérification du salon (à implémenter avec la config)
-        // const config = await getConfig(interaction.guildId);
-        // if (interaction.channelId !== config.werewolf_channel) ...
+        if (subcommand === 'rules') {
+            const GameInfo = require('../../systems/werewolf/GameInfo');
+            await GameInfo.sendAll(interaction.channel);
+            return interaction.reply({ content: '📖 Guide envoyé !', flags: [64] });
+        }
 
         if (subcommand === 'create') {
             if (manager.getGame(interaction.channel.id)) {

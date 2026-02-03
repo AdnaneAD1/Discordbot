@@ -1,10 +1,17 @@
 const { db } = require('../services/firebase');
+const { getUserSubscription } = require('../services/subscriptions');
 
 const COOLDOWN_DURATION = 24 * 60 * 60 * 1000; // 24 heures en millisecondes
 const MAX_IMAGES_PER_DAY = 5;
 
 class ImageCooldown {
     async checkCooldown(guildId, userId) {
+        // --- Premium+ Exception ---
+        const subscription = await getUserSubscription(userId);
+        if (subscription.tier.features.includes('noCooldowns')) {
+            return { allowed: true, remaining: Infinity, isPremium: true };
+        }
+
         const now = Date.now();
         const cooldownRef = db.collection('guilds').doc(guildId).collection('imageCooldowns').doc(userId);
         const doc = await cooldownRef.get();
@@ -38,6 +45,10 @@ class ImageCooldown {
     }
 
     async recordGeneration(guildId, userId) {
+        // Skip for Premium+
+        const subscription = await getUserSubscription(userId);
+        if (subscription.tier.features.includes('noCooldowns')) return;
+
         const now = Date.now();
         const cooldownRef = db.collection('guilds').doc(guildId).collection('imageCooldowns').doc(userId);
         const doc = await cooldownRef.get();

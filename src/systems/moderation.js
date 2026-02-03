@@ -1,12 +1,11 @@
-const { db } = require('../services/firebase');
+const configCache = require('../services/configCache');
 
 async function checkMessage(message) {
     if (message.author.bot || !message.guild) return false;
 
     const guildId = message.guild.id;
-    // Fetch moderation config (guild specific)
-    const modConfigRef = db.collection('guilds').doc(guildId).collection('config').doc('moderation');
-    const modConfig = (await modConfigRef.get()).data() || {
+    // Fetch moderation config via cache
+    const modConfig = await configCache.getConfig(guildId, 'moderation') || {
         forbiddenWords: [],
         antiLinks: true,
         antiSpam: true

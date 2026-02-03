@@ -14,30 +14,37 @@ async function getActiveChallenges(guildId) {
 
 async function cleanupExpiredChallenges(client) {
     const now = new Date();
-    console.log(`[SYSTEM] Lancement du nettoyage des défis expirés...`);
+    console.log(`[SYSTEM] Lancement du nettoyage des défis expirés (V2 - CollectionGroup)...`);
 
     try {
-        const guildsSnapshot = await db.collection('guilds').get();
+        // Recherche de tous les défis expirés dans TOUTES les sous-collections 'challenges' des guildes
+        const expiredSnapshot = await db.collectionGroup('challenges')
+            .where('active', '==', true)
+            .where('expiresAt', '<=', now)
+            .get();
 
-        for (const guildDoc of guildsSnapshot.docs) {
-            const challengesRef = db.collection('guilds').doc(guildDoc.id).collection('challenges');
-            const expiredSnapshot = await challengesRef
-                .where('active', '==', true)
-                .where('expiresAt', '<=', now)
-                .get();
-
-            if (expiredSnapshot.empty) continue;
-
-            const batch = db.batch();
-            expiredSnapshot.forEach(doc => {
-                batch.update(doc.ref, { active: false });
-                console.log(`[INFO] Défi expiré désactivé : ${doc.data().title} (${doc.id}) sur le serveur ${guildDoc.id}`);
-            });
-
-            await batch.commit();
+        if (expiredSnapshot.empty) {
+            console.log(`[SYSTEM] Aucun défi expiré trouvé.`);
+            return;
         }
+
+        console.log(`[SYSTEM] ${expiredSnapshot.size} défi(s) expiré(s) détecté(s). Désactivation...`);
+
+        const batch = db.batch();
+        expiredSnapshot.forEach(doc => {
+            batch.update(doc.ref, { active: false });
+            // doc.ref.parent.parent est la référence de la guilde (doc guilds/GUILD_ID)
+            const guildId = doc.ref.parent.parent.id;
+            console.log(`[INFO] Défi expiré désactivé : ${doc.data().title} (${doc.id}) sur le serveur ${guildId}`);
+        });
+
+        await batch.commit();
+        console.log(`[SYSTEM] Nettoyage terminé avec succès.`);
     } catch (error) {
         console.error(`[ERROR] Erreur lors du nettoyage des défis :`, error);
+        if (error.code === 'failed-precondition') {
+            console.warn('[WARNING] L\'index CollectionGroup pour "challenges" n\'est probablement pas encore créé dans Firebase. Utilisation du fallback...');
+        }
     }
 }
 
