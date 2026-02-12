@@ -142,15 +142,30 @@ module.exports = {
                             inline: true
                         },
                         {
-                            name: '📊 COMPARATIF RAPIDE',
-                            value: '```' +
-                                'Fonction      | Gratuit | Sigma | Titan\n' +
-                                '--------------|---------|-------|-------\n' +
-                                'Images/Jour   | 5       | 25    | 500   \n' +
-                                'Qualité IA    | SD      | HD    | 4K    \n' +
-                                'Skip Musique  | 100🪙   | 0🪙   | 0🪙   \n' +
-                                'Cooldowns     | Oui     | Oui   | NON   \n' +
-                                '```',
+                            name: '📸 IMAGES & CRÉATIVITÉ',
+                            value: [
+                                '└ Images / Jour | `5` | `25` | `500`',
+                                '└ Qualité Max | `SD` | `HD` | `4K`',
+                                '└ Styles d\'art | `3` | `15` | `MAX`',
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: '🎲 CASINO & JEUX',
+                            value: [
+                                '└ Cashback Perte | `❌` | `10%` | `10%`',
+                                '└ Cooldowns | `Stand.` | `Stand.` | `ZÉRO`',
+                                '└ Multiplicateur XP | `x1` | `x1.5` | `x2.0`',
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: '🎵 MUSIQUE & CONFORT',
+                            value: [
+                                '└ Frais de Skip | `100🪙` | `GRATUIT` | `GRATUIT`',
+                                '└ Audio Quality | `Stand.` | `HIGH` | `ULTRA`',
+                                '└ Back. Profil | `ST.` | `ST.` | `UPLOAD`',
+                            ].join('\n'),
                             inline: false
                         }
                     )

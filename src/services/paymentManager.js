@@ -234,25 +234,44 @@ async function handlePayPalWebhook(req, client) {
 
     console.log('[PayPal Webhook] Événement reçu :', body.event_type);
 
-    // On supporte plusieurs types d'événements de succès selon la configuration PayPal
-    if (body.event_type === 'PAYMENT.SALE.COMPLETED' || body.event_type === 'CHECKOUT.ORDER.APPROVED') {
+    // Support de plusieurs types d'événements de succès selon les versions de l'API PayPal
+    const successEvents = [
+        'PAYMENT.SALE.COMPLETED',
+        'CHECKOUT.ORDER.APPROVED',
+        'PAYMENTS.PAYMENT.COMPLETED',
+        'PAYMENT.SALE.STATE.COMPLETED'
+    ];
+
+    if (successEvents.includes(body.event_type)) {
         const resource = body.resource;
 
-        // Pour CHECKOUT.ORDER.APPROVED, le custom est souvent dans purchase_units
+        // Recherche du champ "custom" dans les différents endroits possibles
         let customField = resource.custom;
+
+        // Pour CHECKOUT.ORDER.APPROVED (v2)
         if (!customField && resource.purchase_units) {
             customField = resource.purchase_units[0].custom_id;
         }
 
+        // Parfois dans les transactions pour v1
+        if (!customField && resource.transactions && resource.transactions[0]) {
+            customField = resource.transactions[0].custom;
+        }
+
         if (!customField || !customField.includes(':')) {
-            console.error('[PayPal Webhook] Champ "custom" manquant ou invalide :', customField);
-            return { success: false, error: 'Format custom invalide' };
+            console.error('[PayPal Webhook] Champ "custom" introuvable dans la ressource. Type:', body.event_type);
+            return { success: false, error: 'Format custom manquant' };
         }
 
         const [userId, sku] = customField.split(':');
-        console.log(`[PayPal Webhook] Paiement validé pour User: ${userId}, SKU: ${sku}`);
+        console.log(`[PayPal Webhook] PAIEMENT CONFIRMÉ ✅ | User: ${userId}, SKU: ${sku}`);
 
         return await deliverProduct(userId, sku, resource.id, client);
+    }
+
+    // On ignore les événements "CREATED" ou "AUTHORIZED" mais on les logue pour info
+    if (body.event_type.includes('.CREATED')) {
+        console.log(`[PayPal Webhook] Info : Paiement en cours de création ou d'autorisation...`);
     }
 
     return { success: true };
