@@ -9,7 +9,37 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
 // Page de retour après paiement (Succès/Santé)
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    const { paymentId, PayerID } = req.query;
+
+    // Si on revient de PayPal avec un paiement à valider
+    if (paymentId && PayerID) {
+        try {
+            const { executePayPalPayment, handlePayPalWebhook } = require('../services/paymentManager');
+            
+            // 1. On exécute le paiement côté PayPal
+            console.log(`[Server] Exécution du paiement ${paymentId}...`);
+            const payment = await executePayPalPayment(paymentId, PayerID);
+
+            // 2. On déclenche manuellement la livraison si le webhook n'est pas encore passé
+            // On simule une structure de webhook minimale pour handlePayPalWebhook
+            const mockReq = {
+                body: {
+                    event_type: 'PAYMENT.SALE.COMPLETED',
+                    resource: payment.transactions[0].related_resources[0].sale
+                }
+            };
+            
+            // Note: handlePayPalWebhook s'occupera de deliverProduct
+            await handlePayPalWebhook(mockReq, req.app.get('discordClient'));
+
+            console.log(`[Server] Paiement ${paymentId} exécuté et livré avec succès.`);
+        } catch (error) {
+            console.error('[Server] Erreur lors de la capture du paiement :', error);
+            // On continue pour afficher la page, mais peut-être avec un message différent si besoin
+        }
+    }
+
     res.status(200).send(`
         <!DOCTYPE html>
         <html lang="fr">

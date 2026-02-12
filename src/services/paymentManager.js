@@ -136,6 +136,27 @@ async function createPayPalPayment(userId, sku) {
 }
 
 /**
+ * Exécute un paiement PayPal (Capture finale)
+ */
+async function executePayPalPayment(paymentId, payerId) {
+    const execute_payment_json = {
+        "payer_id": payerId
+    };
+
+    return new Promise((resolve, reject) => {
+        paypal.payment.execute(paymentId, execute_payment_json, function (error, payment) {
+            if (error) {
+                console.error('[PayPal Execute] Error:', error.response);
+                reject(error);
+            } else {
+                console.log(`[PayPal Execute] Paiement ${paymentId} exécuté avec succès !`);
+                resolve(payment);
+            }
+        });
+    });
+}
+
+/**
  * Vérifie le statut d'un paiement via l'API PayPal (Polling)
  */
 async function checkPaymentStatus(paymentId) {
@@ -285,6 +306,15 @@ async function deliverProduct(userId, sku, paymentId = 'manual', client = null) 
     }
 
     try {
+        // --- Vérification Idempotence (Éviter double livraison) ---
+        if (paymentId !== 'manual') {
+            const check = await db.collection('transactions').where('paymentId', '==', paymentId).get();
+            if (!check.empty) {
+                console.log(`[DeliverProduct] Paiement ${paymentId} déjà traité. Skip.`);
+                return { success: true, message: 'Déjà livré' };
+            }
+        }
+
         let message = '';
         let benefits = '';
 
@@ -350,6 +380,7 @@ async function deliverProduct(userId, sku, paymentId = 'manual', client = null) 
 
 module.exports = {
     createPayPalPayment,
+    executePayPalPayment,
     handlePayPalWebhook,
     deliverProduct,
     PRODUCTS
