@@ -4,6 +4,36 @@
 
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const path = require('path');
+const fs = require('fs');
+
+// Dossier des polices
+const FONTS_DIR = path.join(__dirname, '../assets/fonts');
+
+// Polices supportées
+const SUPPORTED_FONTS = {
+    'Arial': 'Arial, sans-serif',
+    'Roboto': 'Roboto, "Segoe UI", sans-serif',
+    'Montserrat': 'Montserrat, sans-serif',
+    'Open Sans': '"Open Sans", sans-serif',
+    'Lato': 'Lato, sans-serif',
+    'Poppins': 'Poppins, sans-serif',
+    'Oswald': 'Oswald, sans-serif',
+    'Raleway': 'Raleway, sans-serif',
+    'Nunito': 'Nunito, sans-serif',
+    'Bebas Neue': '"Bebas Neue", cursive'
+};
+
+// Enregistrement des polices si présentes
+if (fs.existsSync(FONTS_DIR)) {
+    const files = fs.readdirSync(FONTS_DIR);
+    files.forEach(file => {
+        if (file.endsWith('.ttf') || file.endsWith('.otf')) {
+            const fontName = path.parse(file).name;
+            registerFont(path.join(FONTS_DIR, file), { family: fontName });
+            console.log(`[WelcomeCard] Police enregistrée : ${fontName}`);
+        }
+    });
+}
 
 // Backgrounds prédéfinis
 const BACKGROUNDS = {
@@ -62,8 +92,11 @@ async function generateWelcomeCard(member, config = {}) {
         titleText: config.titleText || 'BIENVENUE',
         messageText: config.messageText || 'Bienvenue sur le serveur !',
         textColor: config.textColor || '#FFFFFF',
-        accentColor: config.accentColor || '#febc11'
+        accentColor: config.accentColor || '#febc11',
+        fontFamily: config.fontFamily || 'Arial'
     };
+
+    const fontFace = SUPPORTED_FONTS[settings.fontFamily] || settings.fontFamily || 'Arial, sans-serif';
 
     // ===== BACKGROUND =====
     const bgConfig = BACKGROUNDS[settings.backgroundId] || BACKGROUNDS.default;
@@ -131,7 +164,7 @@ async function generateWelcomeCard(member, config = {}) {
 
     // ===== TITRE (BIENVENUE) =====
     ctx.fillStyle = settings.textColor;
-    ctx.font = 'bold 56px Arial, sans-serif';
+    ctx.font = `bold 56px ${fontFace}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -144,12 +177,12 @@ async function generateWelcomeCard(member, config = {}) {
     ctx.fillText(settings.titleText, width / 2, 280);
 
     // ===== USERNAME =====
-    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.font = `bold 36px ${fontFace}`;
     ctx.fillStyle = settings.accentColor;
     ctx.fillText(member.user.displayName || member.user.username, width / 2, 330);
 
     // ===== MESSAGE =====
-    ctx.font = '24px Arial, sans-serif';
+    ctx.font = `24px ${fontFace}`;
     ctx.fillStyle = settings.textColor;
     ctx.shadowBlur = 5;
 
