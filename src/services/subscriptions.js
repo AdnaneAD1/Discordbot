@@ -80,6 +80,13 @@ const SUBSCRIPTION_TIERS = {
     }
 };
 
+// Hiérarchie des tiers pour la gestion des upgrades/downgrades
+const TIER_WEIGHT = {
+    'free': 0,
+    'SIGMA_PLAYER': 1,
+    'TITAN_SERVER': 2
+};
+
 /**
  * Mappe les anciens IDs vers les nouveaux pour la transition DB
  */
@@ -214,16 +221,56 @@ async function getImageLimit(userId) {
 
 /**
  * Crée ou met à jour un abonnement (appelé après paiement réussi)
+ * Gère le cumul (stacking), les upgrades et les files d'attente.
  */
 async function createSubscription(userId, tierId, billingCycle = 'monthly') {
-    const tier = SUBSCRIPTION_TIERS[tierId.toUpperCase()];
-    if (!tier || tier.id === 'free') {
+    const newTier = SUBSCRIPTION_TIERS[tierId.toUpperCase()];
+    if (!newTier || newTier.id === 'free') {
         throw new Error('Tier invalide');
     }
 
-    const now = new Date();
-    const expiresAt = new Date(now);
+    const subRef = db.collection('subscriptions').doc(userId);
+    const subDoc = await subRef.get();
 
+    let expiresAt;
+    let finalTier = newTier.id;
+    let startedAt = new Date();
+    const now = new Date();
+
+    if (subDoc.exists) {
+        const currentData = subDoc.data();
+        const currentTierId = currentData.tier;
+        const currentExpiresAt = currentData.expiresAt.toDate();
+        const isCurrentActive = currentExpiresAt > now;
+
+        if (isCurrentActive) {
+            const currentWeight = TIER_WEIGHT[currentTierId] || 0;
+            const newWeight = TIER_WEIGHT[newTier.id] || 0;
+
+            if (currentTierId === newTier.id) {
+                // Même tier : On cumule la durée (Stacking)
+                expiresAt = new Date(currentExpiresAt);
+                console.log(`[Subscriptions] Cumul pour ${userId} : Extension du tier ${currentTierId}`);
+            } else if (newWeight > currentWeight) {
+                // Upgrade : On passe au tier supérieur immédiatement
+                expiresAt = new Date(now);
+                console.log(`[Subscriptions] Upgrade pour ${userId} : ${currentTierId} -> ${newTier.id}`);
+            } else {
+                // Downgrade / Queue : On garde le tier actuel et on ajoute la durée à la fin
+                finalTier = currentTierId;
+                expiresAt = new Date(currentExpiresAt);
+                console.log(`[Subscriptions] Mise en attente pour ${userId} : Plus petit tier (${newTier.id}) ajouté à la fin du ${currentTierId}`);
+            }
+        } else {
+            // Pas d'abonnement actif : On part de maintenant
+            expiresAt = new Date(now);
+        }
+    } else {
+        // Nouveau client : On part de maintenant
+        expiresAt = new Date(now);
+    }
+
+    // Calcul de la nouvelle date d'expiration
     if (billingCycle === 'yearly') {
         expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     } else {
@@ -231,31 +278,33 @@ async function createSubscription(userId, tierId, billingCycle = 'monthly') {
     }
 
     const subscriptionData = {
-        tier: tier.id,
+        tier: finalTier,
         billingCycle,
-        startedAt: now,
+        startedAt: subDoc.exists ? (subDoc.data().startedAt || startedAt) : startedAt,
         expiresAt,
         updatedAt: now,
         status: 'active'
     };
 
-    await db.collection('subscriptions').doc(userId).set(subscriptionData, { merge: true });
+    await subRef.set(subscriptionData, { merge: true });
 
     // Log l'événement
     await db.collection('subscription_logs').add({
         userId,
         action: 'subscription_created',
-        tier: tier.id,
+        tier: finalTier,
+        originalTierBought: newTier.id,
         billingCycle,
         timestamp: now
     });
 
     return {
         success: true,
-        tier,
+        tier: SUBSCRIPTION_TIERS[finalTier],
         expiresAt
     };
 }
+
 
 /**
  * Annule un abonnement (ne supprime pas immédiatement, attend l'expiration)
