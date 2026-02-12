@@ -49,13 +49,13 @@ async function generateProfileCard(data) {
 
     // 2. OVERLAY / CARD BODY
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.roundRect(20, 20, width - 40, height - 40, 20);
+    drawRoundRect(ctx, 20, 20, width - 40, height - 40, 20);
     ctx.fill();
 
     // Bordure d'accent
     ctx.strokeStyle = accentColor;
     ctx.lineWidth = 2;
-    ctx.roundRect(20, 20, width - 40, height - 40, 20);
+    drawRoundRect(ctx, 20, 20, width - 40, height - 40, 20);
     ctx.stroke();
 
     // 3. AVATAR
@@ -115,13 +115,13 @@ async function generateProfileCard(data) {
 
     // Fond de la barre
     ctx.fillStyle = '#333';
-    ctx.roundRect(barX, barY, barWidth, barHeight, 12);
+    drawRoundRect(ctx, barX, barY, barWidth, barHeight, 12);
     ctx.fill();
 
     // Progression
     const progress = Math.min(1, (xp - currentLevelXp) / (nextLevelXp - currentLevelXp || 1));
     ctx.fillStyle = accentColor;
-    ctx.roundRect(barX, barY, barWidth * progress, barHeight, 12);
+    drawRoundRect(ctx, barX, barY, barWidth * progress, barHeight, 12);
     ctx.fill();
 
     // Stats XP
@@ -207,20 +207,16 @@ function wrapText(ctx, text, maxWidth) {
     return lines;
 }
 
-// Polyfill roundRect si absent
-if (!CanvasRenderingContext2D.prototype.roundRect) {
-    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-        if (w < 2 * r) r = w / 2;
-        if (h < 2 * r) r = h / 2;
-        this.beginPath();
-        this.moveTo(x + r, y);
-        this.arcTo(x + w, y, x + w, y + h, r);
-        this.arcTo(x + w, y + h, x, y + h, r);
-        this.arcTo(x, y + h, x, y, r);
-        this.arcTo(x, y, x + w, y, r);
-        this.closePath();
-        return this;
-    };
+function drawRoundRect(ctx, x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
 }
 
 module.exports = { generateProfileCard };
