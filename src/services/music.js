@@ -31,7 +31,8 @@ function getNodes() {
         { name: 'Serenetia-WS', url: 'lavalinkv4.serenetia.com:80', auth: 'https://dsc.gg/ajidevserver', secure: false },
         { name: 'Serenetia-Fallback', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
         { name: 'Trinium', url: 'lavalink.triniumhost.com:4333', auth: 'free', secure: false },
-        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
+        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true },
+        { name: 'Lavamoon', url: 'lavamoon.app:443', auth: 'youshallnotpass', secure: true }
     ];
 
     // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent

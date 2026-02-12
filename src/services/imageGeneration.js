@@ -229,20 +229,21 @@ async function modifyImageWithHuggingFace(imageUrl, prompt) {
         if (!imgRes.ok) throw new Error('Impossible de télécharger l\'image source');
         const imgBuffer = await imgRes.arrayBuffer();
 
-        // 2. Envoyer au modèle InstructPix2Pix
-        const response = await fetch('https://router.huggingface.co/models/timbrooks/instruct-pix2pix', {
+        // 2. Envoyer au modèle Stable Diffusion XL Base (Le plus stable et performant sur l'API Inference)
+        const response = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${HF_API_KEY}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-Wait-For-Model': 'true'
             },
             body: JSON.stringify({
-                inputs: prompt, // Le prompt d'instruction
-                image: Buffer.from(imgBuffer).toString('base64'), // L'image encodée
+                inputs: prompt,
+                image: Buffer.from(imgBuffer).toString('base64'),
                 parameters: {
-                    num_inference_steps: 20,
-                    image_guidance_scale: 1.5,
-                    guidance_scale: 7.5
+                    num_inference_steps: 30, // SDXL nécessite moins d'étapes mais ici on assure la qualité
+                    guidance_scale: 8.0,
+                    strength: 0.55 // Un peu plus conservateur pour garder la structure originale
                 }
             })
         });
@@ -280,7 +281,7 @@ async function modifyImage(imageUrl, prompt, userId) {
         return {
             success: true,
             filepath,
-            providerName: 'InstructPix2Pix (HF)'
+            providerName: 'Stable Diffusion (HF)'
         };
     }
 
