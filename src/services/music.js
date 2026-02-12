@@ -18,24 +18,27 @@ function getNodes() {
     // Nœud principal depuis les variables d'environnement
     if (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT) {
         nodes.push({
-            name: 'MainNode',
+            name: 'CustomMainNode',
             url: `${process.env.LAVALINK_HOST}:${process.env.LAVALINK_PORT}`,
             auth: process.env.LAVALINK_PASSWORD || 'youshallnotpass',
             secure: process.env.LAVALINK_SECURE === 'true'
         });
     }
 
-    // Nœuds publics gratuits comme fallback ultime
+    // Nœuds publics gratuits comme fallback (Pool de secours)
     const publicNodes = [
-        { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
-        { name: 'Serenetia2', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
-        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
+        { name: 'Serenetia-S', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
+        { name: 'Serenetia-WS', url: 'lavalinkv4.serenetia.com:80', auth: 'https://dsc.gg/ajidevserver', secure: false },
+        { name: 'Serenetia-Fallback', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
+        { name: 'Trinium', url: 'lavalink.triniumhost.com:4333', auth: 'free', secure: false },
+        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true },
+        { name: 'Koyu', url: 'lavalink.koyu.io:443', auth: 'youshallnotpass', secure: true },
+        { name: 'Lavasoul', url: 'lavalink.lavasoul.xyz:443', auth: 'youshallnotpass', secure: true }
     ];
 
-    // Ajouter les nœuds publics seulement si aucun nœud n'est configuré
-    if (nodes.length === 0) {
-        nodes.push(...publicNodes);
-    }
+    // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent
+    // Shoukaku choisira intelligemment le meilleur nœud (L'idéal)
+    nodes.push(...publicNodes);
 
     return nodes;
 }
