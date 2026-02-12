@@ -1,19 +1,23 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { validatePrompt } = require('../../utils/contentFilter');
 const imageCooldown = require('../../systems/imageCooldown');
-const { generateImage, getAllStyles, getStyleInfo } = require('../../services/imageGeneration');
+const { generateImage, modifyImage, getAllStyles, getStyleInfo } = require('../../services/imageGeneration');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('imagine')
-        .setDescription('Génère une image à partir d\'une description (propulsé par Nano Banana & HF)')
+        .setDescription('Génère ou modifie une image via IA')
         .addStringOption(option =>
             option.setName('prompt')
-                .setDescription('Description de l\'image à générer')
+                .setDescription('Description de l\'image (ou instruction de modification)')
                 .setRequired(true))
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image à modifier (Optionnel)')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('style')
-                .setDescription('Style artistique de l\'image')
+                .setDescription('Style artistique (Uniquement pour la génération)')
                 .setRequired(false)
                 .addChoices(
                     { name: '📸 Réaliste', value: 'realistic' },
@@ -37,6 +41,7 @@ module.exports = {
     async execute(interaction) {
         const prompt = interaction.options.getString('prompt');
         const style = interaction.options.getString('style') || 'realistic';
+        const imageAttachment = interaction.options.getAttachment('image');
         const isPrivate = interaction.options.getBoolean('private') || false;
 
         // Validation du prompt
@@ -47,23 +52,79 @@ module.exports = {
 
         // Vérification du cooldown
         const cooldownCheck = await imageCooldown.checkCooldown(interaction.guild.id, interaction.user.id);
+
+        let cost = 0;
+        const maxImages = cooldownCheck.maxImages || 5;
+
         if (!cooldownCheck.allowed) {
-            return interaction.reply({
-                content: `⏱️ Tu as atteint la limite de 5 images par jour.\nRéessaye dans **${cooldownCheck.resetIn}**.`,
+            // Limite atteinte : Proposer de payer
+            const { Blackjack } = require('../../systems/casino');
+            const balance = await Blackjack.getBalance(interaction.user.id);
+            const PRICE_PER_IMAGE = 500;
+
+            if (balance < PRICE_PER_IMAGE) {
+                return interaction.reply({
+                    content: `⏱️ **Limite atteinte (${maxImages}/${maxImages})** et pas assez de jetons pour continuer.\nIl te faut **${PRICE_PER_IMAGE}** 🪙 pour générer une image supplémentaire (Solde: ${balance}).`,
+                    flags: [64]
+                });
+            }
+
+            // Demander confirmation de paiement
+            const payRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('imagine_pay')
+                    .setLabel(`Payer ${PRICE_PER_IMAGE} 🪙 pour générer`)
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('💎')
+            );
+
+            const msg = await interaction.reply({
+                content: `⏱️ **Limite quotidienne atteinte (${maxImages}/${maxImages}).**\nVeux-tu dépenser **${PRICE_PER_IMAGE}** jetons pour générer cette image quand même ?`,
+                components: [payRow],
+                fetchReply: true,
                 flags: [64]
             });
+
+            try {
+                const confirmation = await msg.awaitMessageComponent({
+                    filter: i => i.user.id === interaction.user.id && i.customId === 'imagine_pay',
+                    time: 30000
+                });
+
+                // Paiement accepté
+                await Blackjack.updateBalance(interaction.user.id, -PRICE_PER_IMAGE);
+                cost = PRICE_PER_IMAGE;
+                await confirmation.update({ content: `✅ **Paiement validé !** Génération en cours... (-${PRICE_PER_IMAGE} 🪙)`, components: [] });
+            } catch (e) {
+                return interaction.editReply({ content: '❌ Temps écoulé ou annulé.', components: [] });
+            }
+        } else {
+            await interaction.deferReply({ flags: isPrivate ? [64] : [] });
         }
 
-        await interaction.deferReply({ flags: isPrivate ? [64] : [] });
-
         try {
-            // Génération de l'image avec le nouveau service
-            const result = await generateImage(prompt, {
-                style,
-                userId: interaction.user.id,
-                guildId: interaction.guild.id,
-                premium: false
-            });
+            let result;
+
+            if (imageAttachment) {
+                // Mode Modification (Img2Img)
+                if (!imageAttachment.contentType.startsWith('image/')) {
+                    return interaction.editReply('❌ Le fichier fourni n\'est pas une image valide.');
+                }
+
+                // On met à jour le message d'attente
+                await interaction.editReply({ content: '🎨 Modification de l\'image en cours... (Cela peut prendre ~30s)' });
+
+                result = await modifyImage(imageAttachment.url, prompt, interaction.user.id);
+            } else {
+                // Mode Génération (Txt2Img)
+                result = await generateImage(prompt, {
+                    style,
+                    userId: interaction.user.id,
+                    guildId: interaction.guild.id,
+                    premium: cooldownCheck.isPremium || false,
+                    quality: (await require('../../services/subscriptions').getUserSubscription(interaction.user.id)).tier.features.imageQuality
+                });
+            }
 
             // Enregistrement de la génération
             await imageCooldown.recordGeneration(interaction.guild.id, interaction.user.id);
@@ -73,17 +134,21 @@ module.exports = {
 
             // Création de l'embed
             const embed = new EmbedBuilder()
-                .setTitle('🎨 Image Générée')
+                .setTitle(imageAttachment ? '🎨 Image Modifiée' : '🎨 Image Générée')
                 .setDescription(`**Prompt :** ${prompt}`)
                 .addFields(
-                    { name: 'Style', value: `${styleInfo?.emoji || '🎨'} ${styleInfo?.name || style}`, inline: true },
-                    { name: 'Restant', value: `${cooldownCheck.remaining - 1}/5`, inline: true },
+                    { name: 'Mode', value: imageAttachment ? 'Modification (Img2Img)' : 'Génération', inline: true },
+                    { name: 'Coût', value: cost > 0 ? `**${cost}** 🪙` : `${maxImages - (cooldownCheck.remaining - 1)}/${maxImages} (Gratuit)`, inline: true },
                     { name: 'Provider', value: result.providerName, inline: true }
                 )
                 .setImage('attachment://generated.png')
                 .setColor('#9b59b6')
                 .setFooter({ text: `Demandé par ${interaction.user.username} • Propulsé par ${result.providerName}` })
                 .setTimestamp();
+
+            if (imageAttachment) {
+                embed.setThumbnail(imageAttachment.url); // Affiche l'original en petit
+            }
 
             // Boutons d'action
             const row = new ActionRowBuilder()
@@ -103,6 +168,7 @@ module.exports = {
             const attachment = new AttachmentBuilder(result.filepath, { name: 'generated.png' });
 
             await interaction.editReply({
+                content: '', // Reset text content
                 embeds: [embed],
                 files: [attachment],
                 components: [row]
@@ -110,7 +176,11 @@ module.exports = {
 
             // Stocker les données pour la régénération
             interaction.client.imageCache = interaction.client.imageCache || new Map();
-            interaction.client.imageCache.set(interaction.user.id, { prompt, style });
+            interaction.client.imageCache.set(interaction.user.id, {
+                prompt,
+                style,
+                imageUrl: imageAttachment ? imageAttachment.url : null // On garde l'URL source
+            });
 
         } catch (error) {
             console.error('Erreur lors de la génération:', error);

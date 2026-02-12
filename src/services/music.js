@@ -1,6 +1,7 @@
 const { Shoukaku, Connectors } = require('shoukaku');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { db } = require('./firebase');
+const { isGuildPremium } = require('./subscriptions');
 
 /**
  * =============================================
@@ -241,7 +242,7 @@ async function playTrack(player, track) {
             .setThumbnail(track.info.artworkUrl || null)
             .addFields(
                 { name: 'Durée', value: formatTime(track.info.length), inline: true },
-                { name: 'Auteur', value: track.info.author || 'Inconnu', inline: true }
+                { name: 'Artiste', value: track.info.author || 'Inconnu', inline: true }
             )
             .setFooter({ text: `Demandé par ${track.requester?.username || 'Inconnu'}` });
 
@@ -250,10 +251,22 @@ async function playTrack(player, track) {
             player.nowPlayingMessage.delete().catch(() => { });
         }
 
-        player.nowPlayingMessage = await player.textChannel.send({
-            embeds: [embed],
-            components: [row, row2]
-        }).catch(() => null);
+        // Vérifier le premium pour l'affichage
+        const premiumStatus = await isGuildPremium(player.guildId);
+
+        if (!premiumStatus.isPremium) {
+            // Affichage simplifié "Clean Mode" pour les non-Premium
+            player.nowPlayingMessage = await player.textChannel.send({
+                content: `🎵 **En train de jouer : [${track.info.title}](${track.info.uri})** 🎧`,
+                components: [row] // Uniquement la première rangée (contrôles principaux)
+            }).catch(() => null);
+        } else {
+            // Affichage avec Embed pour les premium
+            player.nowPlayingMessage = await player.textChannel.send({
+                embeds: [embed],
+                components: [row, row2]
+            }).catch(() => null);
+        }
     }
 }
 

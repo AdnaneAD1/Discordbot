@@ -6,18 +6,18 @@ const MAX_IMAGES_PER_DAY = 5;
 
 class ImageCooldown {
     async checkCooldown(guildId, userId) {
-        // --- Premium+ Exception ---
         const subscription = await getUserSubscription(userId);
-        if (subscription.tier.features.includes('noCooldowns')) {
-            return { allowed: true, remaining: Infinity, isPremium: true };
+        if (subscription.tier.features.noCooldowns) {
+            return { allowed: true, remaining: 999, isPremium: true, maxImages: 999 };
         }
 
+        const maxImages = subscription.tier.features.imagesPerDay || MAX_IMAGES_PER_DAY;
         const now = Date.now();
-        const cooldownRef = db.collection('guilds').doc(guildId).collection('imageCooldowns').doc(userId);
+        const cooldownRef = db.collection('users').doc(userId).collection('cooldowns').doc('image');
         const doc = await cooldownRef.get();
 
         if (!doc.exists) {
-            return { allowed: true, remaining: MAX_IMAGES_PER_DAY };
+            return { allowed: true, remaining: maxImages };
         }
 
         const data = doc.data();
@@ -26,7 +26,7 @@ class ImageCooldown {
         // Filtrer les timestamps qui sont encore dans la fenêtre de 24h
         const recentTimestamps = timestamps.filter(ts => now - ts < COOLDOWN_DURATION);
 
-        if (recentTimestamps.length >= MAX_IMAGES_PER_DAY) {
+        if (recentTimestamps.length >= maxImages) {
             const oldestTimestamp = Math.min(...recentTimestamps);
             const resetTime = oldestTimestamp + COOLDOWN_DURATION;
             const hoursLeft = Math.ceil((resetTime - now) / 3600000);
@@ -40,17 +40,17 @@ class ImageCooldown {
 
         return {
             allowed: true,
-            remaining: MAX_IMAGES_PER_DAY - recentTimestamps.length
+            remaining: maxImages - recentTimestamps.length,
+            maxImages: maxImages
         };
     }
 
     async recordGeneration(guildId, userId) {
-        // Skip for Premium+
         const subscription = await getUserSubscription(userId);
-        if (subscription.tier.features.includes('noCooldowns')) return;
+        if (subscription.tier.features.noCooldowns) return;
 
         const now = Date.now();
-        const cooldownRef = db.collection('guilds').doc(guildId).collection('imageCooldowns').doc(userId);
+        const cooldownRef = db.collection('users').doc(userId).collection('cooldowns').doc('image');
         const doc = await cooldownRef.get();
 
         let timestamps = [];

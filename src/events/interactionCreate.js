@@ -4,6 +4,7 @@ const { handleMusicInteraction } = require('./handlers/musicHandlers');
 const { handleProfileInteraction } = require('./handlers/profileHandlers');
 const { handleImageInteraction } = require('./handlers/imageHandlers');
 const { handleTicketInteraction } = require('./handlers/ticketHandlers');
+const { handleWelcomeInteraction } = require('./handlers/welcomeHandlers');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -67,6 +68,8 @@ module.exports = {
                 } else if (customId === 'giveaway_entry') {
                     const { handleEntry } = require('../systems/giveaways');
                     await handleEntry(interaction);
+                } else if (customId.startsWith('welcome_')) {
+                    await handleWelcomeInteraction(interaction);
                 }
             } catch (error) {
                 console.error(`Interaction Handler Error (${customId}):`, error);

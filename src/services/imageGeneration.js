@@ -96,26 +96,41 @@ const STYLES = {
  * Génère une image via Pollinations.ai (100% gratuit, pas de clé API)
  * Documentation: https://pollinations.ai
  */
-async function generateWithPollinations(prompt, options = {}) {
+async function generateWithPollinations(prompt, options = {}, retryCount = 0) {
+    const MAX_RETRIES = 2;
+
     try {
         // Pollinations utilise une URL GET simple avec le prompt encodé
         const encodedPrompt = encodeURIComponent(prompt);
         const width = options.width || 1024;
         const height = options.height || 1024;
+        const seed = options.seed || Date.now();
 
         // Paramètres optionnels: model, width, height, seed, nologo
-        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&nologo=true`;
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
 
-        console.log(`[Pollinations] Génération en cours...`);
+        console.log(`[Pollinations] Génération en cours (tentative ${retryCount + 1})...`);
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
         const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'image/png,image/*'
-            }
+            },
+            signal: controller.signal
         });
 
+        clearTimeout(timeout);
+
         if (!response.ok) {
+            // Retry sur 502/503/504
+            if ([502, 503, 504].includes(response.status) && retryCount < MAX_RETRIES) {
+                console.log(`[Pollinations] Erreur ${response.status}, retry dans 5s...`);
+                await new Promise(r => setTimeout(r, 5000));
+                return generateWithPollinations(prompt, options, retryCount + 1);
+            }
             throw new Error(`HTTP ${response.status}`);
         }
 
@@ -133,6 +148,10 @@ async function generateWithPollinations(prompt, options = {}) {
             image: buffer
         };
     } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error('[Pollinations] Timeout après 60s');
+            return { success: false, error: 'Timeout' };
+        }
         console.error('[Pollinations] Erreur:', error.message);
         return { success: false, error: error.message };
     }
@@ -140,26 +159,25 @@ async function generateWithPollinations(prompt, options = {}) {
 
 
 /**
- * Génère une image via Hugging Face
+ * Génère une image via Hugging Face Inference API (gratuit avec token)
  */
 async function generateWithHuggingFace(prompt, options = {}) {
-    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
+    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
 
     if (!HF_API_KEY) {
         return { success: false, error: 'Clé API Hugging Face non configurée' };
     }
 
     try {
-        const response = await fetch(providerConfig[PROVIDERS.HUGGINGFACE].url, {
+        // Utiliser le router fal-ai pour FLUX/dev (Meilleure qualité)
+        const response = await fetch('https://router.huggingface.co/fal-ai/fal-ai/flux/dev', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${HF_API_KEY}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                prompt: prompt,
-                model: 'black-forest-labs/FLUX.1-schnell',
-                response_format: 'b64_json'
+                prompt: prompt
             })
         });
 
@@ -167,23 +185,31 @@ async function generateWithHuggingFace(prompt, options = {}) {
             let errorMsg = `HTTP ${response.status}`;
             try {
                 const errorData = await response.json();
-                errorMsg = errorData.error?.message || errorData.error || errorMsg;
+                errorMsg = errorData.error || errorMsg;
+
+                // Si le modèle est en cours de chargement, attendre et réessayer
+                if (response.status === 503 && errorData.estimated_time) {
+                    console.log(`[HuggingFace] Modèle en chargement, attente ${errorData.estimated_time}s...`);
+                    await new Promise(r => setTimeout(r, Math.min(errorData.estimated_time * 1000, 30000)));
+                    return generateWithHuggingFace(prompt, options);
+                }
             } catch (e) { }
             throw new Error(errorMsg);
         }
 
-        const result = await response.json();
-        const b64Image = result.data?.[0]?.b64_json;
+        // L'API retourne directement l'image en binaire
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        if (b64Image) {
-            return {
-                success: true,
-                provider: PROVIDERS.HUGGINGFACE,
-                image: Buffer.from(b64Image, 'base64')
-            };
+        if (buffer.length < 1000) {
+            throw new Error('Image reçue trop petite');
         }
 
-        throw new Error('Aucune image reçue de Hugging Face');
+        return {
+            success: true,
+            provider: PROVIDERS.HUGGINGFACE,
+            image: buffer
+        };
     } catch (error) {
         console.error('[HuggingFace] Erreur:', error.message);
         return { success: false, error: error.message };
@@ -191,14 +217,90 @@ async function generateWithHuggingFace(prompt, options = {}) {
 }
 
 /**
- * Génère une image avec fallback automatique entre providers
+ * Modifie une image existante via Hugging Face (InstructPix2Pix)
  */
+async function modifyImageWithHuggingFace(imageUrl, prompt) {
+    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
+    if (!HF_API_KEY) return { success: false, error: 'Clé API Hugging Face manquante' };
+
+    try {
+        // 1. D'abord, télécharger l'image source
+        const imgRes = await fetch(imageUrl);
+        if (!imgRes.ok) throw new Error('Impossible de télécharger l\'image source');
+        const imgBuffer = await imgRes.arrayBuffer();
+
+        // 2. Envoyer au modèle InstructPix2Pix
+        const response = await fetch('https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${HF_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                inputs: prompt, // Le prompt d'instruction
+                image: Buffer.from(imgBuffer).toString('base64'), // L'image encodée
+                parameters: {
+                    num_inference_steps: 20,
+                    image_guidance_scale: 1.5,
+                    guidance_scale: 7.5
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`HF Error: ${response.status} - ${err}`);
+        }
+
+        const resultBuffer = await response.arrayBuffer();
+
+        return {
+            success: true,
+            provider: PROVIDERS.HUGGINGFACE,
+            image: Buffer.from(resultBuffer)
+        };
+
+    } catch (error) {
+        console.error('[ModifyImage] Erreur:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+async function modifyImage(imageUrl, prompt, userId) {
+    // Wrapper simple pour l'instant, on pourrait ajouter d'autres providers plus tard
+    const result = await modifyImageWithHuggingFace(imageUrl, prompt);
+
+    if (result.success) {
+        const tempDir = path.join(__dirname, '..', 'temp');
+        await fs.mkdir(tempDir, { recursive: true });
+        const filename = `modified_${userId}_${Date.now()}.png`;
+        const filepath = path.join(tempDir, filename);
+        await fs.writeFile(filepath, result.image);
+
+        return {
+            success: true,
+            filepath,
+            providerName: 'InstructPix2Pix (HF)'
+        };
+    }
+
+    throw new Error(result.error || 'Échec de la modification');
+}
 async function generateImage(prompt, options = {}) {
     const { style = 'realistic', userId, guildId, premium = false } = options;
 
     // Appliquer le style au prompt
     const styleConfig = STYLES[style] || STYLES.realistic;
-    const fullPrompt = `${prompt}, ${styleConfig.modifier}`;
+
+    // Déterminer la qualité
+    let qualityModifier = 'standard quality';
+    if (options.quality === 'hd' || premium) {
+        qualityModifier = 'high definition, sharp focus, detailed textures, 4k resolution';
+    } else if (options.quality === '4k') {
+        qualityModifier = 'ultra-high definition, 8k resolution, masterpiece, cinematic lighting, hyper-realistic, volumetric lighting';
+    }
+
+    const fullPrompt = `${prompt}, ${styleConfig.modifier}, ${qualityModifier}`;
 
     // Ordre des providers selon la priorité
     const providers = Object.entries(providerConfig)
@@ -315,6 +417,7 @@ setInterval(cleanupTempImages, 30 * 60 * 1000);
 
 module.exports = {
     generateImage,
+    modifyImage,
     getStyleInfo,
     getAllStyles,
     getProvidersStatus,

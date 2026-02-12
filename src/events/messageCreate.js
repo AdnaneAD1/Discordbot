@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const { addXP } = require('../systems/xp');
 const { checkMessage } = require('../systems/moderation');
+const { checkToxicity } = require('../systems/sentinel');
 
 // Cooldown to prevent spam XP (1 minute)
 const xpCooldowns = new Set();
@@ -14,9 +15,17 @@ module.exports = {
         const moderated = await checkMessage(message);
         if (moderated) return;
 
-        // 2. XP System logic
+        // 2. IA Sentinel (Silence analysis)
+        checkToxicity(message).catch(err => console.error('[Sentinel] Error:', err));
+
+        // 3. XP System logic
         if (!xpCooldowns.has(message.author.id)) {
-            const xpAmount = Math.floor(Math.random() * 11) + 15; // 15-25 XP
+            const { getXpMultiplier } = require('../services/subscriptions');
+            const multiplier = await getXpMultiplier(message.author.id);
+
+            const baseAmount = Math.floor(Math.random() * 11) + 15; // 15-25 XP
+            const xpAmount = Math.round(baseAmount * multiplier);
+
             await addXP(message.member, xpAmount, 'message');
 
             xpCooldowns.add(message.author.id);

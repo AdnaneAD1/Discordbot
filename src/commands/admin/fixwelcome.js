@@ -39,55 +39,72 @@ module.exports = {
         let membersNotFound = 0;
 
         for (const message of messages.values()) {
-            // Analyser tout message de bot avec embed
-            if (!message.author.bot || message.embeds.length === 0) continue;
+            // Analyser tout message de bot avec embed OU attachment (Card Image)
+            if (!message.author.bot) continue;
+            const hasEmbed = message.embeds.length > 0;
+            const hasAttachment = message.attachments.size > 0;
+
+            if (!hasEmbed && !hasAttachment) continue;
             botMessagesFound++;
 
-            const embed = message.embeds[0];
-            const title = embed.title || '';
-            const description = embed.description || '';
-            const fullText = (title + description).toLowerCase();
+            let embed = hasEmbed ? message.embeds[0] : null;
+            let description = embed?.description || '';
+            let title = embed?.title || '';
+            let content = message.content || '';
+
+            const fullTextForSearch = (title + description + content).toLowerCase();
 
             // Regex pour capturer l'ID de n'importe quelle mention
             const mentionRegex = /<@!?(\d+)>/g;
-            const matches = [...description.matchAll(mentionRegex)];
 
-            if ((fullText.includes('bienvenue') || fullText.includes('welcome')) && matches.length > 0) {
+            // On cherche les mentions PARTOUT pour identifier le membre concerné
+            const matchesInEmbed = [...(title + description).matchAll(mentionRegex)];
+            const matchesInContent = [...content.matchAll(mentionRegex)];
+            const allMatches = [...matchesInEmbed, ...matchesInContent];
+
+            if ((fullTextForSearch.includes('bienvenue') || fullTextForSearch.includes('welcome')) && allMatches.length > 0) {
                 try {
                     let newDescription = description;
                     let hasResolvedForThisMessage = false;
+                    const resolvedMemberIds = new Set();
 
-                    for (const match of matches) {
+                    // 1. Résolution des membres
+                    for (const match of allMatches) {
                         const userId = match[1];
+                        if (resolvedMemberIds.has(userId)) continue;
 
-                        // 1. Fetch FORCÉ depuis l'API (pas seulement le cache)
                         try {
                             const member = await interaction.guild.members.fetch(userId);
                             if (member) {
                                 membersResolved++;
-                                // Remplacer la mention par le nom d'affichage en gras
+                                resolvedMemberIds.add(userId);
+                                // Dans l'embed, on remplace par le pseudo en gras (Nouveau Welcome Style)
                                 newDescription = newDescription.replaceAll(match[0], `**${member.displayName}**`);
                                 hasResolvedForThisMessage = true;
                             }
                         } catch (e) {
                             membersNotFound++;
-                            console.log(`[FixWelcome] Membre ${userId} introuvable (quitté).`);
+                            console.log(`[FixWelcome] Membre ${userId} introuvable.`);
                         }
                     }
 
-                    // 2. TRIGGER RE-RENDER : Toggling invisible character + adding content mention
-                    if (hasResolvedForThisMessage) {
-                        // Extraire le premier ID résolu pour le contenu du message (force le client à parser)
-                        const firstMentionId = matches[0][1];
+                    // 2. TRIGGER UPDATE : Mention dans le content + Embed nettoyé
+                    if (hasResolvedForThisMessage || (hasAttachment && matchesInContent.length > 0)) {
+                        const firstMentionId = Array.from(resolvedMemberIds)[0] || allMatches[0][1];
 
+                        // Petit toggle invisible pour forcer le refresh
                         if (newDescription.includes('\u200b')) {
                             newDescription = newDescription.replace(/\u200b/g, '');
                         } else {
                             newDescription = newDescription + '\u200b';
                         }
 
-                        const newEmbed = EmbedBuilder.from(embed).setDescription(newDescription);
-                        await message.edit({ content: `<@${firstMentionId}>`, embeds: [newEmbed] });
+                        const updatePayload = { content: `<@${firstMentionId}>` };
+                        if (hasEmbed) {
+                            updatePayload.embeds = [EmbedBuilder.from(embed).setDescription(newDescription)];
+                        }
+
+                        await message.edit(updatePayload);
                         fixedCount++;
                     }
                 } catch (error) {

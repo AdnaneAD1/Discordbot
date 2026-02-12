@@ -18,10 +18,39 @@ async function handleMusicInteraction(interaction) {
     const { customId } = interaction;
     const { getExistingPlayer, destroyPlayer, handleVoteSkip, playTrack } = require('../../services/music');
     const player = getExistingPlayer(interaction.guild.id);
+    const action = customId.replace('music_', '');
 
     if (!player) return interaction.reply({ content: '❌ Plus de musique en cours.', flags: [64] });
 
-    const action = customId.replace('music_', '');
+    const { isGuildPremium } = require('../../services/subscriptions');
+    const { Blackjack } = require('../../systems/casino');
+
+    const subStatus = await isGuildPremium(interaction.guild.id);
+    const isPremium = subStatus.isPremium;
+
+    const COSTS = {
+        'skip': 100,
+        'stop': 50,
+        'pause': 50
+    };
+
+    // Vérification et Paiement pour les serveurs Non-Premium
+    if (!isPremium && COSTS[action]) {
+        const cost = COSTS[action];
+        const balance = await Blackjack.getBalance(interaction.user.id);
+
+        if (balance < cost) {
+            return interaction.reply({
+                content: `❌ **Action Payante !**\nCe serveur n'est pas [Titan Server].\nIl te faut **${cost}** 🪙 pour cette action (Solde: ${balance}).`,
+                flags: [64]
+            });
+        }
+
+        // Paiement
+        await Blackjack.updateBalance(interaction.user.id, -cost);
+        // On continue l'exécution, mais on notifie du paiement
+        await interaction.channel.send({ content: `💸 **${interaction.user.username}** a payé **${cost}** 🪙 pour utiliser **${action.toUpperCase()}** !` }).catch(() => { });
+    }
 
     switch (action) {
         case 'back':

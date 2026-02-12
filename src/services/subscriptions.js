@@ -26,17 +26,18 @@ const SUBSCRIPTION_TIERS = {
             earlyAccess: false,
             exclusiveBadge: null,
             maxPlaylists: 3,
-            voteSkipWeight: 1
+            voteSkipWeight: 1,
+            maxGuilds: 0
         }
     },
-    PREMIUM: {
+    SIGMA_PLAYER: {
         id: 'premium',
-        name: 'Premium',
-        emoji: '⭐',
+        name: 'Sigma Player',
+        emoji: '💎',
         color: '#f39c12',
         price: {
             monthly: 4.99,
-            yearly: 39.99 // ~33% de réduction
+            yearly: 39.99
         },
         features: {
             imagesPerDay: 25,
@@ -46,33 +47,35 @@ const SUBSCRIPTION_TIERS = {
             customBackground: true,
             prioritySupport: true,
             earlyAccess: true,
-            exclusiveBadge: '⭐',
+            exclusiveBadge: '💎',
             maxPlaylists: 10,
-            voteSkipWeight: 2
+            voteSkipWeight: 2,
+            maxGuilds: 1
         }
     },
-    PREMIUM_PLUS: {
+    TITAN_SERVER: {
         id: 'premium_plus',
-        name: 'Premium+',
+        name: 'Titan Server',
         emoji: '👑',
         color: '#9b59b6',
         price: {
             monthly: 9.99,
-            yearly: 79.99 // ~33% de réduction
+            yearly: 79.99
         },
         features: {
-            imagesPerDay: -1, // Illimité
+            imagesPerDay: 250,
             imageQuality: '4k',
-            imageStyles: -1, // Tous
+            imageStyles: -1,
             xpMultiplier: 2,
             customBackground: true,
             customBackgroundUpload: true,
             prioritySupport: true,
             earlyAccess: true,
             exclusiveBadge: '👑',
-            maxPlaylists: -1, // Illimité
+            maxPlaylists: 50,
             voteSkipWeight: 3,
-            noCooldowns: true
+            noCooldowns: true,
+            maxGuilds: 3
         }
     }
 };
@@ -382,6 +385,132 @@ function calculateYearlySavings(tierId) {
     return monthlyTotal - yearlyPrice;
 }
 
+// ===== GESTION DES SERVEURS PREMIUM =====
+
+/**
+ * Vérifie si un serveur a le premium activé (par n'importe quel utilisateur)
+ */
+async function isGuildPremium(guildId) {
+    try {
+        const snapshot = await db.collection('subscriptions')
+            .where('status', '==', 'active')
+            .where('activeGuildIds', 'array-contains', guildId)
+            .limit(1)
+            .get();
+
+        if (snapshot.empty) return { isPremium: false, sponsor: null, tier: null };
+
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+
+        // Vérifier expiration
+        if (data.expiresAt && data.expiresAt.toDate() <= new Date()) {
+            return { isPremium: false, sponsor: null, tier: null };
+        }
+
+        return {
+            isPremium: true,
+            sponsor: doc.id, // userId du sponsor
+            tier: SUBSCRIPTION_TIERS[data.tier.toUpperCase()] || SUBSCRIPTION_TIERS.PREMIUM
+        };
+    } catch (error) {
+        console.error('[Subscriptions] Erreur isGuildPremium:', error);
+        return { isPremium: false, sponsor: null, tier: null };
+    }
+}
+
+/**
+ * Active le premium sur un serveur pour un utilisateur
+ */
+async function activateGuild(userId, guildId) {
+    const subscription = await getUserSubscription(userId);
+
+    if (!subscription.isActive || subscription.tier.id === 'free') {
+        return { success: false, error: 'Aucun abonnement premium actif.' };
+    }
+
+    const subRef = db.collection('subscriptions').doc(userId);
+    const subDoc = await subRef.get();
+    const data = subDoc.data();
+
+    const activeGuilds = data.activeGuildIds || [];
+    const maxGuilds = subscription.tier.features.maxGuilds || 1;
+
+    // Vérifier si déjà activé
+    if (activeGuilds.includes(guildId)) {
+        return { success: false, error: 'Ce serveur est déjà activé.' };
+    }
+
+    // Vérifier la limite
+    if (activeGuilds.length >= maxGuilds) {
+        return {
+            success: false,
+            error: `Tu as atteint la limite de ${maxGuilds} serveur(s). Utilise \`/premium transfer\` pour changer.`
+        };
+    }
+
+    // Ajouter le serveur
+    activeGuilds.push(guildId);
+    await subRef.update({ activeGuildIds: activeGuilds });
+
+    return { success: true, activeGuilds };
+}
+
+/**
+ * Désactive le premium sur un serveur
+ */
+async function deactivateGuild(userId, guildId) {
+    const subRef = db.collection('subscriptions').doc(userId);
+    const subDoc = await subRef.get();
+
+    if (!subDoc.exists) {
+        return { success: false, error: 'Aucun abonnement trouvé.' };
+    }
+
+    const data = subDoc.data();
+    const activeGuilds = data.activeGuildIds || [];
+
+    if (!activeGuilds.includes(guildId)) {
+        return { success: false, error: 'Ce serveur n\'est pas activé.' };
+    }
+
+    const newGuilds = activeGuilds.filter(id => id !== guildId);
+    await subRef.update({ activeGuildIds: newGuilds });
+
+    return { success: true, activeGuilds: newGuilds };
+}
+
+/**
+ * Transfère le premium d'un serveur à un autre
+ */
+async function transferGuild(userId, fromGuildId, toGuildId) {
+    const deactivateResult = await deactivateGuild(userId, fromGuildId);
+    if (!deactivateResult.success) {
+        return deactivateResult;
+    }
+
+    const activateResult = await activateGuild(userId, toGuildId);
+    if (!activateResult.success) {
+        // Rollback
+        await activateGuild(userId, fromGuildId);
+        return activateResult;
+    }
+
+    return { success: true, from: fromGuildId, to: toGuildId };
+}
+
+/**
+ * Récupère les serveurs actifs d'un utilisateur
+ */
+async function getActiveGuilds(userId) {
+    const subRef = db.collection('subscriptions').doc(userId);
+    const subDoc = await subRef.get();
+
+    if (!subDoc.exists) return [];
+
+    return subDoc.data().activeGuildIds || [];
+}
+
 module.exports = {
     SUBSCRIPTION_TIERS,
     PREMIUM_FEATURES,
@@ -397,5 +526,11 @@ module.exports = {
     getAvailableTiers,
     getTierById,
     formatPrice,
-    calculateYearlySavings
+    calculateYearlySavings,
+    // Guild management
+    isGuildPremium,
+    activateGuild,
+    deactivateGuild,
+    transferGuild,
+    getActiveGuilds
 };

@@ -49,7 +49,41 @@ module.exports = {
                     option.setName('texte')
                         .setDescription('Ton titre personnalisé (max 30 caractères)')
                         .setRequired(true)
-                        .setMaxLength(30))),
+                        .setMaxLength(30)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('social')
+                .setDescription('Ajouter tes réseaux sociaux (Premium)')
+                .addStringOption(option =>
+                    option.setName('plateforme')
+                        .setDescription('La plateforme à ajouter')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'YouTube', value: 'youtube' },
+                            { name: 'Twitch', value: 'twitch' },
+                            { name: 'Instagram', value: 'instagram' },
+                            { name: 'TikTok', value: 'tiktok' }
+                        ))
+                .addStringOption(option =>
+                    option.setName('lien')
+                        .setDescription('Lien ou pseudo (ex: @username ou youtube.com/c/nom)')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('banner')
+                .setDescription('Définir une bannière d\'embed (Premium+)')
+                .addStringOption(option =>
+                    option.setName('url')
+                        .setDescription('URL de l\'image (PNG/JPG)')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('featured')
+                .setDescription('Mettre en avant tes badges (max 5)'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('privacy')
+                .setDescription('Gérer ta confidentialité (Premium)')),
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
@@ -75,19 +109,131 @@ module.exports = {
             case 'titre':
                 await handleSetTitle(interaction, guildId, userId);
                 break;
+            case 'social':
+                await handleSetSocial(interaction, guildId, userId);
+                break;
+            case 'banner':
+                await handleSetBanner(interaction, guildId, userId);
+                break;
+            case 'featured':
+                await handleFeaturedBadges(interaction, guildId, userId);
+                break;
+            case 'privacy':
+                await handleSetPrivacy(interaction, guildId, userId);
+                break;
         }
     }
 };
+
+async function handleSetBanner(interaction, guildId, userId) {
+    const bannerUrl = interaction.options.getString('url');
+    const subscription = await getUserSubscription(userId);
+
+    if (subscription.tier.id !== 'premium_plus') {
+        return interaction.reply({ content: '⭐ Les bannières sont réservées aux membres **Premium+**.', flags: [64] });
+    }
+
+    if (!bannerUrl.match(/\.(jpeg|jpg|gif|png)$/) || !bannerUrl.startsWith('http')) {
+        return interaction.reply({ content: '❌ URL invalide. L\'image doit être au format PNG, JPG ou GIF.', flags: [64] });
+    }
+
+    await updateProfile(userId, guildId, { banner: bannerUrl });
+    await interaction.reply({ content: '✅ Ta bannière de profil a été mise à jour !', flags: [64] });
+}
+
+async function handleFeaturedBadges(interaction, guildId, userId) {
+    const profile = await getProfile(userId, guildId);
+    const userBadges = profile.badges || [];
+
+    if (userBadges.length === 0) {
+        return interaction.reply({ content: '❌ Tu n\'as aucun badge à mettre en avant.', flags: [64] });
+    }
+
+    const options = userBadges.map(id => {
+        const badge = BADGES[id];
+        return {
+            label: badge?.name || id,
+            value: id,
+            emoji: badge?.emoji || '🏅',
+            default: (profile.featuredBadges || []).includes(id)
+        };
+    });
+
+    const select = new StringSelectMenuBuilder()
+        .setCustomId('profile_featured_select')
+        .setPlaceholder('Sélectionne tes badges (max 5)')
+        .setMinValues(0)
+        .setMaxValues(Math.min(5, options.length))
+        .addOptions(options);
+
+    const row = new ActionRowBuilder().addComponents(select);
+    await interaction.reply({ content: '🏅 **Badges à la Une**\nChoisis jusqu\'à 5 badges à afficher en priorité sur ton profil.', components: [row], flags: [64] });
+}
+
+async function handleSetPrivacy(interaction, guildId, userId) {
+    const subscription = await getUserSubscription(userId);
+    if (subscription.tier.id === 'free') {
+        return interaction.reply({ content: '⭐ La gestion de la confidentialité est réservée aux membres **Premium**.', flags: [64] });
+    }
+
+    const profile = await getProfile(userId, guildId);
+    const privacy = profile.privacy || { showStats: true, showRank: true, showXp: true };
+
+    const options = [
+        { label: 'Afficher les Statistiques', value: 'showStats', emoji: '📊', default: privacy.showStats },
+        { label: 'Afficher le Grade', value: 'showRank', emoji: '🎖️', default: privacy.showRank },
+        { label: 'Afficher l\'XP', value: 'showXp', emoji: '✨', default: privacy.showXp }
+    ];
+
+    const select = new StringSelectMenuBuilder()
+        .setCustomId('profile_privacy_select')
+        .setPlaceholder('Gérer les éléments visibles')
+        .setMinValues(0)
+        .setMaxValues(3)
+        .addOptions(options);
+
+    const row = new ActionRowBuilder().addComponents(select);
+    await interaction.reply({ content: '🔒 **Paramètres de Confidentialité**\nSélectionne les éléments que tu souhaites rendre publics sur ton profil.', components: [row], flags: [64] });
+}
+
+async function handleSetSocial(interaction, guildId, userId) {
+    const platform = interaction.options.getString('plateforme');
+    const link = interaction.options.getString('lien');
+
+    const subscription = await getUserSubscription(userId);
+    const isPremium = subscription.tier.id !== 'free';
+    const profile = await getProfile(userId, guildId);
+
+    const hasSocialFeature = isPremium || (profile.unlockedFeatures || []).includes('social_links');
+
+    if (!hasSocialFeature) {
+        return interaction.reply({
+            content: '⭐ L\'ajout de réseaux sociaux est réservé aux membres **Premium**.\n\n' +
+                '💡 Tu peux aussi débloquer cette option définitivement pour **20,000 🪙** via ton `/profile` ! (Bientôt disponible en bouton)',
+            flags: [64]
+        });
+    }
+    const socialLinks = profile.socialLinks || {};
+    socialLinks[platform] = link;
+
+    await updateProfile(userId, guildId, { socialLinks });
+
+    await interaction.reply({
+        content: `✅ Ton lien **${platform}** a été mis à jour : \`${link}\``,
+        flags: [64]
+    });
+}
 
 async function handleViewProfile(interaction, guildId) {
     const targetMember = interaction.options.getMember('membre') || interaction.member;
     const targetId = targetMember.id;
 
     // Récupérer toutes les données nécessaires
-    const [profile, userDoc, subscription, gradesDoc] = await Promise.all([
+    const [profile, userDoc, subscription, guildSub, gradesDoc] = await Promise.all([
         getProfile(targetId, guildId),
         db.collection('guilds').doc(guildId).collection('users').doc(targetId).get(),
         getUserSubscription(targetId),
+        require('../../services/subscriptions').isGuildPremium(guildId), // Guild premium status
         db.collection('guilds').doc(guildId).collection('config').doc('grades').get()
     ]);
 
@@ -121,6 +267,22 @@ async function handleViewProfile(interaction, guildId) {
         progressBar = '█'.repeat(10);
     }
 
+    // Badge d'abonnement (Utilisations des badges définis dans profiles.js)
+    let subscriptionBadge = '';
+    const { BADGES } = require('../../systems/profiles');
+
+    if (subscription.tier.id === 'premium_plus') {
+        subscriptionBadge = ` ${BADGES.titan_server.emoji}`;
+    } else if (subscription.tier.id === 'premium') {
+        subscriptionBadge = ` ${BADGES.sigma_player.emoji}`;
+    }
+
+    // Badge Serveur Titan (Si le serveur est sponsorisé par un Titan)
+    let guildBadge = '';
+    if (guildSub.isPremium && guildSub.tier.id === 'premium_plus') {
+        guildBadge = ` ${BADGES.titan_guild.emoji}`;
+    }
+
     // Construire l'embed
     const embed = new EmbedBuilder()
         .setColor(profile.accentColor || '#febc11')
@@ -130,59 +292,86 @@ async function handleViewProfile(interaction, guildId) {
         })
         .setThumbnail(targetMember.user.displayAvatarURL({ size: 256 }));
 
+    // Bannière (Premium+)
+    if (profile.banner && (subscription.tier.id === 'premium_plus' || targetId === interaction.user.id)) {
+        embed.setImage(profile.banner);
+    }
+
     // Titre personnalisé ou par défaut
     if (profile.customTitle) {
-        embed.setTitle(`${profile.customTitle}`);
+        embed.setTitle(`${profile.customTitle}${subscriptionBadge}${guildBadge}`);
+    } else {
+        embed.setTitle(`${targetMember.user.username}${subscriptionBadge}${guildBadge}`);
     }
 
-    // Badge d'abonnement
-    let subscriptionBadge = '';
-    if (subscription.tier.id === 'premium_plus') {
-        subscriptionBadge = ' 👑';
-    } else if (subscription.tier.id === 'premium') {
-        subscriptionBadge = ' ⭐';
-    }
-
-    // Description avec bio
+    // Description avec bio et Badges à la une
     let description = '';
+
+    // Badges à la une (Sigma Feature)
+    const featuredBadges = profile.featuredBadges || [];
+    if (featuredBadges.length > 0) {
+        description += `${formatBadges(featuredBadges)}\n\n`;
+    }
 
     if (profile.bio) {
         description += `*"${profile.bio}"*\n\n`;
     }
 
-    // Badges
+    // Badges normaux (si non masqués ou si c'est le sien)
     const badgeDisplay = formatBadges(profile.badges || []);
     if (badgeDisplay) {
-        description += `**Badges:** ${badgeDisplay}${subscriptionBadge}\n\n`;
+        description += `**Collection:** ${badgeDisplay}${subscriptionBadge}\n\n`;
     } else if (subscriptionBadge) {
-        description += `**Badges:** ${subscriptionBadge.trim()}\n\n`;
+        description += `**Abonnement:** ${subscriptionBadge.trim()}\n\n`;
     }
 
     embed.setDescription(description || '*Aucune bio définie*');
 
-    // Informations de rang
-    embed.addFields(
-        {
+    // Réseaux Sociaux
+    const socials = profile.socialLinks || {};
+    const socialEmojis = { youtube: '🔴', twitch: '🟣', instagram: '📸', tiktok: '📱' };
+    let socialDisplay = Object.entries(socials)
+        .filter(([_, link]) => link)
+        .map(([platform, link]) => `${socialEmojis[platform]} **${platform.charAt(0).toUpperCase() + platform.slice(1)}**: ${link.includes('http') ? `[Lien](${link})` : `\`${link}\``}`)
+        .join('\n');
+
+    if (socialDisplay) {
+        embed.addFields({ name: '🌐 Réseaux Sociaux', value: socialDisplay, inline: false });
+    }
+
+    // Paramètres de confidentialité (Privacy Mode)
+    const privacy = profile.privacy || { showStats: true, showRank: true, showXp: true };
+    const isOwner = targetId === interaction.user.id;
+
+    // Informations de rang (respecte la confidentialité)
+    if (privacy.showRank || isOwner) {
+        embed.addFields({
             name: `${currentGrade.emoji} Grade`,
             value: `**${userData.level}**`,
             inline: true
-        },
-        {
+        });
+    }
+
+    if (privacy.showXp || isOwner) {
+        embed.addFields({
             name: '✨ XP',
             value: `**${userData.xp || 0}** XP`,
             inline: true
-        },
-        {
+        });
+    }
+
+    if ((privacy.showRank || privacy.showXp) || isOwner) {
+        embed.addFields({
             name: '📊 Progression',
             value: nextGrade
                 ? `\`${progressBar}\` ${progressPercent}%\n➜ ${nextGrade.emoji} ${nextGrade.name}`
                 : `\`${progressBar}\` MAX`,
             inline: false
-        }
-    );
+        });
+    }
 
-    // Statistiques de jeu si disponibles
-    if (gameStats.werewolf) {
+    // Statistiques de jeu (respecte la confidentialité)
+    if ((privacy.showStats || isOwner) && gameStats.werewolf) {
         const ww = gameStats.werewolf;
         const totalGames = (ww.wins || 0) + (ww.losses || 0);
         const winRate = totalGames > 0 ? Math.round((ww.wins / totalGames) * 100) : 0;
@@ -205,7 +394,7 @@ async function handleViewProfile(interaction, guildId) {
     }
 
     embed.setFooter({
-        text: `ID: ${targetId}`,
+        text: `ID: ${targetId} ${!privacy.showStats && !isOwner ? '• Stats masquées 🔒' : ''}`,
         iconURL: interaction.guild.iconURL()
     });
     embed.setTimestamp();
@@ -225,6 +414,17 @@ async function handleViewProfile(interaction, guildId) {
                 .setLabel('Background')
                 .setEmoji('🎨')
                 .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('profile_edit_color')
+                .setLabel('Couleur')
+                .setEmoji('🌈')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('profile_edit_title')
+                .setLabel('Titre')
+                .setEmoji('👑')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(subscription.tier.id === 'free'),
             new ButtonBuilder()
                 .setCustomId('profile_view_badges')
                 .setLabel('Badges')
@@ -257,13 +457,16 @@ async function handleBackgroundSelect(interaction, guildId, userId) {
     const backgrounds = getAllBackgrounds();
     const profile = await getProfile(userId, guildId);
 
-    const options = backgrounds.map(bg => ({
-        label: bg.name,
-        value: bg.id,
-        description: bg.premium ? '⭐ Premium requis' : 'Gratuit',
-        emoji: bg.premium ? '🔒' : '🎨',
-        default: profile.background === bg.id
-    }));
+    const options = backgrounds.map(bg => {
+        const isUnlocked = isPremium || (profile.unlockedBackgrounds || []).includes(bg.id);
+        return {
+            label: bg.name,
+            value: bg.id,
+            description: bg.premium && !isUnlocked ? `⭐ ${bg.price.toLocaleString()} 🪙` : (bg.premium ? 'Premium / Débloqué' : 'Gratuit'),
+            emoji: bg.premium && !isUnlocked ? '🔒' : '🎨',
+            default: profile.background === bg.id
+        };
+    });
 
     const row = new ActionRowBuilder()
         .addComponents(
@@ -288,6 +491,19 @@ async function handleBackgroundSelect(interaction, guildId, userId) {
 }
 
 async function handleSetColor(interaction, guildId, userId) {
+    const subscription = await getUserSubscription(userId);
+    const isPremium = subscription.tier.id !== 'free';
+    const profile = await getProfile(userId, guildId);
+    const hasColorFeature = isPremium || (profile.unlockedFeatures || []).includes('custom_color');
+
+    if (!hasColorFeature) {
+        return interaction.reply({
+            content: '⭐ Changer ta couleur d\'accent est réservé aux membres **Premium**.\n\n' +
+                '💡 Tu peux aussi débloquer cette option définitivement pour **25,000 🪙** via le bouton **"Couleur"** sur ton `/profile` !',
+            flags: [64]
+        });
+    }
+
     let color = interaction.options.getString('hex');
 
     // Valider le format hexadécimal
@@ -374,11 +590,15 @@ async function handleViewBadges(interaction, guildId, userId) {
 async function handleSetTitle(interaction, guildId, userId) {
     const title = interaction.options.getString('texte');
 
-    // Vérifier l'abonnement
     const subscription = await getUserSubscription(userId);
-    if (subscription.tier.id === 'free') {
+    const isPremium = subscription.tier.id !== 'free';
+    const profile = await getProfile(userId, guildId);
+    const hasTitleFeature = isPremium || (profile.unlockedFeatures || []).includes('custom_title');
+
+    if (!hasTitleFeature) {
         return interaction.reply({
-            content: '⭐ Cette fonctionnalité nécessite un abonnement **Premium**.',
+            content: '⭐ Définir un titre personnalisé est réservé aux membres **Premium**.\n\n' +
+                '💡 Tu peux aussi débloquer cette option définitivement pour **40,000 🪙** via le bouton **"Titre"** sur ton `/profile` !',
             flags: [64]
         });
     }

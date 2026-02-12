@@ -57,6 +57,7 @@ async function startGiveaway(channel, prize, duration, winnerCount = 1, top10Onl
         .setColor('#e74c3c')
         .setTitle('🎁 GIVEAWAY !')
         .setDescription(`**Prix**: ${prize}\n**Gagnants**: ${winnerCount}\n**Fin**: <t:${Math.floor(endsAt.getTime() / 1000)}:R>${top10Only ? '\n\n⚠️ **Participation réservée au TOP 10 du classement XP !**' : ''}`)
+        .addFields({ name: '👥 Participants', value: '0', inline: true })
         .setFooter({ text: 'Cliquez sur le bouton pour participer !' });
 
     const row = new ActionRowBuilder()
@@ -199,6 +200,15 @@ async function handleEntry(interaction) {
 
     participants.push(interaction.user.id);
     await gRef.update({ participants });
+
+    // Mettre à jour l'embed avec le nouveau compte
+    try {
+        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+        embed.setFields({ name: '👥 Participants', value: `${participants.length}`, inline: true });
+        await interaction.message.edit({ embeds: [embed] });
+    } catch (err) {
+        console.error('[Giveaway] Erreur mise à jour embed participants:', err);
+    }
 
     await interaction.reply({ content: '✅ Participation enregistrée ! Bonne chance.', flags: [64] });
 }

@@ -23,8 +23,19 @@ async function checkMessage(message) {
 
     // 2. Anti-Links
     if (modConfig.antiLinks && (content.includes('http://') || content.includes('https://') || content.includes('discord.gg/'))) {
-        if (!message.member.permissions.has('ManageMessages')) {
-            await moderate(message, 'Unauthorised Link');
+        // [MOD] Autoriser les GIFs (Tenor/Giphy)
+        const isGif = content.includes('tenor.com') || content.includes('giphy.com');
+
+        if (!isGif && !message.member.permissions.has('ManageMessages')) {
+            // [MOD] Au lieu de supprimer, on avertit
+            await message.reply({
+                content: '⚠️ **Attention :** Ce message contient un lien externe non vérifié. Restez vigilants !',
+                allowedMentions: { repliedUser: false }
+            }).then(msg => {
+                setTimeout(() => msg.delete().catch(() => { }), 10000);
+            });
+
+            // Envoyer une alerte discrète aux admins (Phase Sentinel à venir)
             return true;
         }
     }

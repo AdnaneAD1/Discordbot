@@ -104,6 +104,42 @@ async function handleWerewolfInteraction(interaction) {
                 components: [row],
                 flags: [64]
             });
+        } else if (customId === 'lg_config_theme') {
+            if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier le thème.', flags: [64] });
+
+            const { isGuildPremium } = require('../../services/subscriptions');
+            const premiumStatus = await isGuildPremium(interaction.guild.id);
+
+            if (!premiumStatus.isPremium || (premiumStatus.tier.id !== 'premium_plus')) {
+                return interaction.reply({
+                    content: '👑 **Les thèmes visuels sont réservés aux serveurs Premium+ !**\nAméliorez votre abonnement pour débloquer cette personnalisation.',
+                    flags: [64]
+                });
+            }
+
+            const availableThemes = [
+                { label: 'Classique', value: 'default', emoji: '🐺' },
+                { label: 'Forêt Royale', value: 'forest', emoji: '🌲' },
+                { label: 'Obsidienne (Sombre)', value: 'dark', emoji: '🌑' },
+                { label: 'Lune de Sang', value: 'bloody', emoji: '🩸' }
+            ];
+
+            const select = new StringSelectMenuBuilder()
+                .setCustomId('lg_set_theme')
+                .setPlaceholder('Choisir une ambiance visuelle')
+                .addOptions(availableThemes.map(t => ({
+                    label: t.label,
+                    value: t.value,
+                    emoji: t.emoji,
+                    default: game.themeId === t.value
+                })));
+
+            const row = new ActionRowBuilder().addComponents(select);
+            await interaction.reply({
+                content: '🎨 **Ambiance Visuelle**\nChoisissez le thème qui sera appliqué aux messages et aux cartes de rôles de la partie.',
+                components: [row],
+                flags: [64]
+            });
         } else if (customId === 'lg_witch_save') {
             if (game.state !== 'NIGHT_RESOLUTION') return interaction.reply({ content: '❌ Trop tard pour utiliser la potion.', flags: [64] });
             game.nightActions.witchActions.save = game.nightActions.wolfTargetId;
@@ -166,6 +202,15 @@ async function handleWerewolfInteraction(interaction) {
             if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier la composition.', flags: [64] });
             game.customRoles = values;
             await interaction.reply({ content: `✅ Composition mise à jour ! (${values.length} rôles sélectionnés).`, flags: [64] });
+        } else if (customId === 'lg_set_theme') {
+            if (interaction.user.id !== game.host.id) return interaction.reply({ content: '❌ Seul l\'hôte peut modifier le thème.', flags: [64] });
+            const success = game.setTheme(values[0]);
+            if (success) {
+                await game.updateLobby();
+                await interaction.reply({ content: `🎨 Thème mis à jour : **${values[0]}** !`, flags: [64] });
+            } else {
+                await interaction.reply({ content: '❌ Thème introuvable.', flags: [64] });
+            }
         } else if (customId === 'lg_wolf_vote') {
             if (game.state !== 'NIGHT') return interaction.reply({ content: '❌ Ce n\'est pas le moment de chasser.', flags: [64] });
             game.nightActions.wolfVotes.set(interaction.user.id, values[0]);

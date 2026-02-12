@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials, Events } = require('discord.js');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -63,9 +63,13 @@ for (const file of eventFiles) {
 
 const { cleanupExpiredChallenges } = require('./systems/challenges');
 const { initGiveaways } = require('./systems/giveaways');
+const { startServer } = require('./api/server');
 
-client.once('clientReady', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+client.once(Events.ClientReady, () => {
+    console.log(`[Bot] Logged in as ${client.user.tag}!`);
+
+    // Démarrage du serveur Web (Webhooks)
+    startServer();
 
     // Nettoyage initial au démarrage
     cleanupExpiredChallenges(client);
@@ -76,6 +80,15 @@ client.once('clientReady', () => {
     setInterval(() => {
         cleanupExpiredChallenges(client);
     }, 15 * 60 * 1000);
+});
+
+// Sécurité Processus (Évite les crashs sur Render)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[CRITICAL] Uncaught Exception:', err);
 });
 
 client.login(process.env.DISCORD_TOKEN);
