@@ -31,9 +31,9 @@ function getNodes() {
         { name: 'Serenetia-WS', url: 'lavalinkv4.serenetia.com:80', auth: 'https://dsc.gg/ajidevserver', secure: false },
         { name: 'Serenetia-Fallback', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
         { name: 'Trinium', url: 'lavalink.triniumhost.com:4333', auth: 'free', secure: false },
-        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true },
-        { name: 'Koyu', url: 'lavalink.koyu.io:443', auth: 'youshallnotpass', secure: true },
-        { name: 'Lavasoul', url: 'lavalink.lavasoul.xyz:443', auth: 'youshallnotpass', secure: true }
+        { name: 'Inodestar', url: 'lava.link:80', auth: 'youshallnotpass', secure: false },
+        { name: 'Gedo', url: 'lavalink.gedo.pw:443', auth: 'youshallnotpass', secure: true },
+        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
     ];
 
     // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent
@@ -274,48 +274,59 @@ async function playTrack(player, track) {
 }
 
 /**
- * Recherche des pistes (Gère Lavalink v4)
+ * Recherche des pistes (Gère Lavalink v4 avec Retry sur plusieurs nœuds)
  */
 async function search(query, requester) {
-    const node = shoukaku.getIdealNode();
-    if (!node) {
+    const nodes = Array.from(shoukaku.nodes.values()).filter(n => n.state === 1); // Uniquement les nœuds connectés
+    if (nodes.length === 0) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
+    // On trie pour mettre le nœud idéal en premier
+    const idealNode = shoukaku.getIdealNode();
+    const sortedNodes = nodes.sort((a, b) => (a.name === idealNode?.name ? -1 : 1));
+
     const searchQuery = getSearchQuery(query);
+    let lastError = null;
 
-    const result = await node.rest.resolve(searchQuery);
+    // Tentative sur chaque nœud disponible jusqu'à ce qu'un fonctionne
+    for (const node of sortedNodes) {
+        try {
+            const result = await node.rest.resolve(searchQuery);
 
-    // En v4, loadType peut être: 'track', 'playlist', 'search', 'empty', 'error'
-    if (!result || result.loadType === 'empty' || result.loadType === 'error') {
-        return { loadType: result?.loadType || 'empty', tracks: [] };
+            if (!result || result.loadType === 'empty') continue;
+            if (result.loadType === 'error') {
+                console.error(`[Music] Erreur sur le nœud ${node.name}:`, result.data);
+                continue;
+            }
+
+            let tracks = [];
+            let playlistInfo = null;
+
+            if (result.loadType === 'playlist') {
+                tracks = result.data.tracks;
+                playlistInfo = result.data.info;
+            } else if (result.loadType === 'track') {
+                tracks = [result.data];
+            } else if (result.loadType === 'search') {
+                tracks = result.data;
+            }
+
+            if (tracks.length > 0) {
+                const formattedTracks = tracks.map(track => ({
+                    ...track,
+                    requester
+                }));
+                return { loadType: result.loadType, tracks: formattedTracks, playlistInfo };
+            }
+        } catch (error) {
+            console.error(`[Music] Échec de recherche sur le nœud ${node.name}:`, error.message || error);
+            lastError = error;
+        }
     }
 
-    let tracks = [];
-    let playlistInfo = null;
-
-    if (result.loadType === 'playlist') {
-        tracks = result.data.tracks;
-        playlistInfo = result.data.info;
-    } else if (result.loadType === 'track') {
-        // En v4, 'track' retourne un objet track unique, pas un tableau
-        tracks = [result.data];
-    } else if (result.loadType === 'search') {
-        // 'search' retourne un tableau de tracks
-        tracks = result.data;
-    }
-
-    // Ajouter le requester à chaque piste
-    const formattedTracks = tracks.map(track => ({
-        ...track,
-        requester
-    }));
-
-    return {
-        loadType: result.loadType,
-        tracks: formattedTracks,
-        playlistInfo
-    };
+    if (lastError) throw lastError;
+    return { loadType: 'empty', tracks: [] };
 }
 
 /**
