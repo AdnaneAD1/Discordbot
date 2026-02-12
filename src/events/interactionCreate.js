@@ -68,6 +68,9 @@ module.exports = {
                 } else if (customId === 'giveaway_entry') {
                     const { handleEntry } = require('../systems/giveaways');
                     await handleEntry(interaction);
+                } else if (customId === 'open_shop_from_info') {
+                    const shopCommand = interaction.client.commands.get('buychips');
+                    if (shopCommand) await shopCommand.execute(interaction);
                 } else if (customId.startsWith('welcome_')) {
                     await handleWelcomeInteraction(interaction);
                 }

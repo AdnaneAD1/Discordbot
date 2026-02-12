@@ -69,7 +69,7 @@ client.once(Events.ClientReady, () => {
     console.log(`[Bot] Logged in as ${client.user.tag}!`);
 
     // Démarrage du serveur Web (Webhooks)
-    startServer();
+    startServer(client);
 
     // Nettoyage initial au démarrage
     cleanupExpiredChallenges(client);

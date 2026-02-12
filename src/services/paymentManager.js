@@ -229,63 +229,102 @@ async function waitForPayment(paymentId, userId, sku, onSuccess) {
 /**
  * Traite le Webhook PayPal (Paiement validé)
  */
-async function handlePayPalWebhook(req) {
-    // Note: Sur Render, req.body contient déjà l'objet parsé grâce à body-parser
+async function handlePayPalWebhook(req, client) {
     const body = req.body;
 
-    // Log pour debug
-    console.log('[PayPal Webhook] Type:', body.event_type);
+    console.log('[PayPal Webhook] Événement reçu :', body.event_type);
 
-    if (body.event_type === 'PAYMENT.SALE.COMPLETED') {
+    // On supporte plusieurs types d'événements de succès selon la configuration PayPal
+    if (body.event_type === 'PAYMENT.SALE.COMPLETED' || body.event_type === 'CHECKOUT.ORDER.APPROVED') {
         const resource = body.resource;
-        const customField = resource.custom;
+
+        // Pour CHECKOUT.ORDER.APPROVED, le custom est souvent dans purchase_units
+        let customField = resource.custom;
+        if (!customField && resource.purchase_units) {
+            customField = resource.purchase_units[0].custom_id;
+        }
 
         if (!customField || !customField.includes(':')) {
-            console.error('[PayPal Webhook] Invalid custom field format:', customField);
+            console.error('[PayPal Webhook] Champ "custom" manquant ou invalide :', customField);
             return { success: false, error: 'Format custom invalide' };
         }
 
         const [userId, sku] = customField.split(':');
-        console.log(`[PayPal Webhook] Payment confirmed for User: ${userId}, Product: ${sku}`);
+        console.log(`[PayPal Webhook] Paiement validé pour User: ${userId}, SKU: ${sku}`);
 
-        return await deliverProduct(userId, sku, resource.id);
+        return await deliverProduct(userId, sku, resource.id, client);
     }
 
     return { success: true };
 }
 
-async function deliverProduct(userId, sku, paymentId = 'manual') {
+async function deliverProduct(userId, sku, paymentId = 'manual', client = null) {
     const product = PRODUCTS[sku];
-    if (!product) return { success: false, error: 'Produit inconnu' };
+    if (!product) {
+        console.error('[DeliverProduct] SKU inconnu :', sku);
+        return { success: false, error: 'Produit inconnu' };
+    }
 
     try {
         let message = '';
+        let benefits = '';
 
         if (product.type === 'consumable') {
             await Blackjack.updateBalance(userId, product.amount);
-            message = `✅ **${product.name}** crédité ! (+${product.amount} 🪙)`;
+            benefits = `+${product.amount.toLocaleString()} jetons 🪙`;
+            message = `✅ **${product.name}** crédité ! (${benefits})`;
         } else if (product.type === 'subscription') {
             await createSubscription(userId, product.tier, product.cycle || 'monthly');
+            benefits = `Abonnement ${product.name} activé ✨`;
             message = `💎 **${product.name}** activé avec succès !`;
         } else if (product.type === 'bundle') {
             await Blackjack.updateBalance(userId, product.amount);
             await createSubscription(userId, product.tier, 'monthly');
-            message = `🎁 **${product.name}** activé ! (+${product.amount} 🪙 & Grade)`;
+            benefits = `+${product.amount.toLocaleString()} jetons & Grade Premium 🎁`;
+            message = `🎁 **${product.name}** activé ! (${benefits})`;
         }
 
-        // Log transaction
+        // --- Notification Discord DM ---
+        if (client) {
+            try {
+                const user = await client.users.fetch(userId);
+                if (user) {
+                    const { EmbedBuilder } = require('discord.js');
+                    const deliveryEmbed = new EmbedBuilder()
+                        .setTitle('✨ ACHAT CONFIRMÉ !')
+                        .setColor('#2ecc71')
+                        .setDescription(`Merci pour ton achat sur **Sigma Palace** ! Ton produit a été livré automatiquement.`)
+                        .addFields(
+                            { name: 'Produit', value: product.name, inline: true },
+                            { name: 'Contenu', value: benefits, inline: true }
+                        )
+                        .setFooter({ text: 'Profite bien de tes avantages !' })
+                        .setTimestamp();
+
+                    await user.send({ embeds: [deliveryEmbed] }).catch(() => {
+                        console.log(`[DeliverProduct] Impossible d'envoyer un DM à ${userId} (DMs fermés)`);
+                    });
+                }
+            } catch (err) {
+                console.error('[DeliverProduct] Erreur lors de la notification Discord :', err);
+            }
+        }
+
+        // Log transaction dans Firestore
         await db.collection('transactions').add({
             userId,
             sku,
             amount: product.price,
             currency: product.currency,
-            provider: 'manual_admin', // En attendant l'auto
+            provider: 'paypal',
+            paymentId,
             timestamp: new Date()
         });
 
+        console.log(`[DeliverProduct] Succès pour ${userId} : ${product.name}`);
         return { success: true, message };
     } catch (error) {
-        console.error('[DeliverProduct] Error:', error);
+        console.error('[DeliverProduct] Erreur fatale :', error);
         return { success: false, error: error.message };
     }
 }
