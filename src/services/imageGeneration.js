@@ -230,7 +230,7 @@ async function modifyImageWithHuggingFace(imageUrl, prompt) {
         const imgBuffer = await imgRes.arrayBuffer();
 
         // 2. Envoyer au modèle InstructPix2Pix
-        const response = await fetch('https://router.huggingface.co/timbrooks/instruct-pix2pix', {
+        const response = await fetch('https://router.huggingface.co/models/timbrooks/instruct-pix2pix', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${HF_API_KEY}`,

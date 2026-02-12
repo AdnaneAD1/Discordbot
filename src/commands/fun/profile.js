@@ -3,6 +3,8 @@ const { db } = require('../../services/firebase');
 const { CODM_GRADES } = require('../../systems/xp');
 const { getProfile, updateProfile, getAllBackgrounds, getAllBadges, formatBadges, BADGES, RARITY_COLORS, checkAndAwardBadges } = require('../../systems/profiles');
 const { getUserSubscription } = require('../../services/subscriptions');
+const { generateProfileCard } = require('../../services/profileCard');
+const { AttachmentBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -393,6 +395,27 @@ async function handleViewProfile(interaction, guildId) {
         });
     }
 
+    // Générer l'image du profil
+    let attachment = null;
+    try {
+        const imageBuffer = await generateProfileCard({
+            member: targetMember,
+            level: userData.level,
+            xp: userData.xp || 0,
+            nextLevelXp: nextGrade ? nextGrade.xp : userData.xp,
+            currentLevelXp: currentGrade.xp,
+            badges: featuredBadges.length > 0 ? featuredBadges : (profile.badges || []).slice(0, 6),
+            background: profile.background || 'default',
+            accentColor: profile.accentColor || '#febc11',
+            bio: profile.bio || '',
+            socials: socials
+        });
+        attachment = new AttachmentBuilder(imageBuffer, { name: `profile_${targetId}.png` });
+        embed.setImage(`attachment://profile_${targetId}.png`);
+    } catch (e) {
+        console.error('[Profile] Erreur génération image:', e);
+    }
+
     embed.setFooter({
         text: `ID: ${targetId} ${!privacy.showStats && !isOwner ? '• Stats masquées 🔒' : ''}`,
         iconURL: interaction.guild.iconURL()
@@ -400,10 +423,10 @@ async function handleViewProfile(interaction, guildId) {
     embed.setTimestamp();
 
     // Boutons d'action
-    const row = new ActionRowBuilder();
+    const components = [];
 
     if (targetId === interaction.user.id) {
-        row.addComponents(
+        const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('profile_edit_bio')
                 .setLabel('Modifier Bio')
@@ -431,12 +454,45 @@ async function handleViewProfile(interaction, guildId) {
                 .setEmoji('🏅')
                 .setStyle(ButtonStyle.Secondary)
         );
+
+        const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('profile_edit_featured')
+                .setLabel('À la Une')
+                .setEmoji('✨')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('profile_edit_social')
+                .setLabel('Sociaux')
+                .setEmoji('🌐')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('profile_edit_banner')
+                .setLabel('Bannière')
+                .setEmoji('🖼️')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(subscription.tier.id !== 'premium_plus'),
+            new ButtonBuilder()
+                .setCustomId('profile_edit_privacy')
+                .setLabel('Privé')
+                .setEmoji('🔒')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(subscription.tier.id === 'free')
+        );
+
+        components.push(row, row2);
     }
 
-    await interaction.reply({
+    const payload = {
         embeds: [embed],
-        components: row.components.length > 0 ? [row] : []
-    });
+        components: components
+    };
+
+    if (attachment) {
+        payload.files = [attachment];
+    }
+
+    await interaction.reply(payload);
 }
 
 async function handleSetBio(interaction, guildId, userId) {

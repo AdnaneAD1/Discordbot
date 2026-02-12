@@ -11,6 +11,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'default',
         name: 'Classique',
         color: '#2b2d31',
+        canvasGradients: ['#2b2d31', '#1e1f22'],
         premium: false,
         price: 0
     },
@@ -18,6 +19,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_blue',
         name: 'Dégradé Bleu',
         color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        canvasGradients: ['#667eea', '#764ba2'],
         premium: false,
         price: 0
     },
@@ -25,6 +27,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_sunset',
         name: 'Coucher de Soleil',
         color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        canvasGradients: ['#f093fb', '#f5576c'],
         premium: false,
         price: 0
     },
@@ -32,6 +35,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_ocean',
         name: 'Océan',
         color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        canvasGradients: ['#4facfe', '#00f2fe'],
         premium: true,
         price: 15000
     },
@@ -39,6 +43,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_fire',
         name: 'Feu',
         color: 'linear-gradient(135deg, #f5af19 0%, #f12711 100%)',
+        canvasGradients: ['#f5af19', '#f12711'],
         premium: true,
         price: 15000
     },
@@ -46,13 +51,15 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_forest',
         name: 'Forêt',
         color: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+        canvasGradients: ['#134e5e', '#71b280'],
         premium: true,
         price: 15000
     },
     gradient_night: {
         id: 'gradient_night',
         name: 'Nuit Étoilée',
-        color: 'linear-gradient(135deg, #00c9ff 0%, #92fe9d 100%)', // Corrected a typo in aurora/night mix
+        color: 'linear-gradient(135deg, #00c9ff 0%, #92fe9d 100%)',
+        canvasGradients: ['#00c9ff', '#92fe9d'],
         premium: true,
         price: 15000
     },
@@ -60,6 +67,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_aurora',
         name: 'Aurore Boréale',
         color: 'linear-gradient(135deg, #0f0c29 0%, #302b63 100%)',
+        canvasGradients: ['#0f0c29', '#302b63'],
         premium: true,
         price: 15000
     },
@@ -67,6 +75,7 @@ const DEFAULT_BACKGROUNDS = {
         id: 'gradient_codm',
         name: 'CODM',
         color: 'linear-gradient(135deg, #febc11 0%, #c99800 100%)',
+        canvasGradients: ['#febc11', '#c99800'],
         premium: false,
         price: 0
     }

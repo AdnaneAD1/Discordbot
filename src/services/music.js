@@ -566,7 +566,8 @@ function formatSearchQuery(query, source = 'youtube') {
         'ytmusic': SEARCH_ENGINES.YOUTUBE_MUSIC,
         'spotify': SEARCH_ENGINES.SPOTIFY,
         'soundcloud': SEARCH_ENGINES.SOUNDCLOUD,
-        'deezer': SEARCH_ENGINES.DEEZER
+        'deezer': SEARCH_ENGINES.DEEZER,
+        'applemusic': SEARCH_ENGINES.APPLE_MUSIC
     };
 
     const prefix = prefixes[source.toLowerCase()] || SEARCH_ENGINES.YOUTUBE;

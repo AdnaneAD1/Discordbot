@@ -139,6 +139,45 @@ async function handleProfileInteraction(interaction) {
 
             modal.addComponents(new ActionRowBuilder().addComponents(titleInput));
             await interaction.showModal(modal);
+        } else if (customId === 'profile_edit_featured') {
+            await handleFeaturedBadges(interaction, guildId, userId);
+        } else if (customId === 'profile_edit_social') {
+            const modal = new ModalBuilder()
+                .setCustomId('profile_social_modal') // Will need a simple modal instead of multiple subcommands
+                .setTitle('Ajouter un réseau social');
+
+            const platformInput = new TextInputBuilder()
+                .setCustomId('platform_input')
+                .setLabel('Plateforme (youtube, twitch, insta, tiktok)')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const linkInput = new TextInputBuilder()
+                .setCustomId('link_input')
+                .setLabel('Lien ou Pseudo')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(platformInput),
+                new ActionRowBuilder().addComponents(linkInput)
+            );
+            await interaction.showModal(modal);
+        } else if (customId === 'profile_edit_banner') {
+            const modal = new ModalBuilder()
+                .setCustomId('profile_banner_modal')
+                .setTitle('Changer ta bannière (Premium+)');
+
+            const bannerInput = new TextInputBuilder()
+                .setCustomId('banner_input')
+                .setLabel('URL de l\'image (PNG/JPG/GIF)')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(bannerInput));
+            await interaction.showModal(modal);
+        } else if (customId === 'profile_edit_privacy') {
+            await handleSetPrivacy(interaction, guildId, userId);
         } else if (customId.startsWith('profile_unlock_')) {
             await handleProfileUnlock(interaction);
         }
@@ -204,9 +243,24 @@ async function handleProfileInteraction(interaction) {
             const title = interaction.fields.getTextInputValue('title_input') || null;
             await updateProfile(userId, guildId, { customTitle: title });
             await interaction.reply({
-                content: title ? `✅ Ton titre a été mis à jour : **${title}**` : '✅ Ton titre a été supprimé.',
+                content: title ? `✅ Ton titre a été mis à jour : **${title}**` : '✅ Ton titre a été supprimée.',
                 flags: [64]
             });
+        } else if (customId === 'profile_social_modal') {
+            const platform = interaction.fields.getTextInputValue('platform_input').toLowerCase();
+            const link = interaction.fields.getTextInputValue('link_input');
+            const profile = await getProfile(userId, guildId);
+            const socialLinks = profile.socialLinks || {};
+            socialLinks[platform] = link;
+            await updateProfile(userId, guildId, { socialLinks });
+            await interaction.reply({ content: `✅ Lien **${platform}** mis à jour !`, flags: [64] });
+        } else if (customId === 'profile_banner_modal') {
+            const bannerUrl = interaction.fields.getTextInputValue('banner_input');
+            if (!bannerUrl.match(/\.(jpeg|jpg|gif|png)$/) || !bannerUrl.startsWith('http')) {
+                return interaction.reply({ content: '❌ URL invalide.', flags: [64] });
+            }
+            await updateProfile(userId, guildId, { banner: bannerUrl });
+            await interaction.reply({ content: '✅ Ta bannière a été mise à jour !', flags: [64] });
         }
     }
 }
