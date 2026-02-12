@@ -64,7 +64,7 @@ const PRODUCTS = {
 
     // --- ABONNEMENTS SEULS ---
     'sub_sigma': {
-        name: 'Abonnement Sigma Player 💎',
+        name: 'Abonnement Sigma Player (Mensuel) 💎',
         description: 'Accès aux fonctions Premium (HD, 25 images IA/j).',
         price: '4.99',
         currency: 'EUR',
@@ -73,8 +73,18 @@ const PRODUCTS = {
         cycle: 'monthly',
         emoji: '✨'
     },
+    'sub_sigma_yearly': {
+        name: 'Abonnement Sigma Player (Annuel) 🏆',
+        description: '39.99€/an (Économise ~33%) ! Accès Premium HD.',
+        price: '39.99',
+        currency: 'EUR',
+        type: 'subscription',
+        tier: 'SIGMA_PLAYER',
+        cycle: 'yearly',
+        emoji: '🏆'
+    },
     'sub_titan': {
-        name: 'Abonnement Titan Server 👑',
+        name: 'Abonnement Titan Server (Mensuel) 👑',
         description: 'Accès Ultime (4K, No Cooldown, Upload Background).',
         price: '9.99',
         currency: 'EUR',
@@ -82,6 +92,16 @@ const PRODUCTS = {
         tier: 'TITAN_SERVER',
         cycle: 'monthly',
         emoji: '🚀'
+    },
+    'sub_titan_yearly': {
+        name: 'Abonnement Titan Server (Annuel) 🌌',
+        description: '79.99€/an (2 mois offerts) ! Accès Ultime 4K.',
+        price: '79.99',
+        currency: 'EUR',
+        type: 'subscription',
+        tier: 'TITAN_SERVER',
+        cycle: 'yearly',
+        emoji: '🌌'
     }
 };
 
@@ -269,9 +289,14 @@ async function handlePayPalWebhook(req, client) {
         // Recherche du champ "custom" dans les différents endroits possibles
         let customField = resource.custom;
 
+        // Parfois dans parent_payment (pour les ventes liées à un paiement)
+        if (!customField && resource.parent_payment && resource.parent_payment.custom) {
+            customField = resource.parent_payment.custom;
+        }
+
         // Pour CHECKOUT.ORDER.APPROVED (v2)
         if (!customField && resource.purchase_units) {
-            customField = resource.purchase_units[0].custom_id;
+            customField = resource.purchase_units[0].custom_id || resource.purchase_units[0].custom;
         }
 
         // Parfois dans les transactions pour v1

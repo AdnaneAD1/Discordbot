@@ -16,20 +16,25 @@ app.get('/health', async (req, res) => {
     if (paymentId && PayerID) {
         try {
             const { executePayPalPayment, handlePayPalWebhook } = require('../services/paymentManager');
-            
+
             // 1. On exécute le paiement côté PayPal
             console.log(`[Server] Exécution du paiement ${paymentId}...`);
             const payment = await executePayPalPayment(paymentId, PayerID);
 
             // 2. On déclenche manuellement la livraison si le webhook n'est pas encore passé
-            // On simule une structure de webhook minimale pour handlePayPalWebhook
+            // On s'assure que le champ custom est bien présent dans la ressource simulée
+            const saleResource = payment.transactions[0].related_resources[0].sale;
+            if (!saleResource.custom && payment.transactions[0].custom) {
+                saleResource.custom = payment.transactions[0].custom;
+            }
+
             const mockReq = {
                 body: {
                     event_type: 'PAYMENT.SALE.COMPLETED',
-                    resource: payment.transactions[0].related_resources[0].sale
+                    resource: saleResource
                 }
             };
-            
+
             // Note: handlePayPalWebhook s'occupera de deliverProduct
             await handlePayPalWebhook(mockReq, req.app.get('discordClient'));
 

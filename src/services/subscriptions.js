@@ -31,7 +31,7 @@ const SUBSCRIPTION_TIERS = {
         }
     },
     SIGMA_PLAYER: {
-        id: 'premium',
+        id: 'SIGMA_PLAYER',
         name: 'Sigma Player',
         emoji: '💎',
         color: '#f39c12',
@@ -54,7 +54,7 @@ const SUBSCRIPTION_TIERS = {
         }
     },
     TITAN_SERVER: {
-        id: 'premium_plus',
+        id: 'TITAN_SERVER',
         name: 'Titan Server',
         emoji: '👑',
         color: '#9b59b6',
@@ -79,6 +79,22 @@ const SUBSCRIPTION_TIERS = {
         }
     }
 };
+
+/**
+ * Mappe les anciens IDs vers les nouveaux pour la transition DB
+ */
+function resolveTier(tierString) {
+    if (!tierString) return SUBSCRIPTION_TIERS.FREE;
+
+    const ts = tierString.toUpperCase();
+    if (SUBSCRIPTION_TIERS[ts]) return SUBSCRIPTION_TIERS[ts];
+
+    // Mappage legacy
+    if (ts === 'PREMIUM') return SUBSCRIPTION_TIERS.SIGMA_PLAYER;
+    if (ts === 'PREMIUM_PLUS') return SUBSCRIPTION_TIERS.TITAN_SERVER;
+
+    return SUBSCRIPTION_TIERS.FREE;
+}
 
 // Fonctionnalités qui peuvent être débloquées par abonnement
 const PREMIUM_FEATURES = {
@@ -112,7 +128,7 @@ async function getUserSubscription(userId, guildId = null) {
             // Vérifier si l'abonnement est encore valide
             if (data.expiresAt && data.expiresAt.toDate() > new Date()) {
                 return {
-                    tier: SUBSCRIPTION_TIERS[data.tier.toUpperCase()] || SUBSCRIPTION_TIERS.FREE,
+                    tier: resolveTier(data.tier),
                     expiresAt: data.expiresAt.toDate(),
                     isActive: true,
                     billingCycle: data.billingCycle || 'monthly',
@@ -411,7 +427,7 @@ async function isGuildPremium(guildId) {
         return {
             isPremium: true,
             sponsor: doc.id, // userId du sponsor
-            tier: SUBSCRIPTION_TIERS[data.tier.toUpperCase()] || SUBSCRIPTION_TIERS.PREMIUM
+            tier: resolveTier(data.tier)
         };
     } catch (error) {
         console.error('[Subscriptions] Erreur isGuildPremium:', error);
