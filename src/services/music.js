@@ -31,8 +31,6 @@ function getNodes() {
         { name: 'Serenetia-WS', url: 'lavalinkv4.serenetia.com:80', auth: 'https://dsc.gg/ajidevserver', secure: false },
         { name: 'Serenetia-Fallback', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
         { name: 'Trinium', url: 'lavalink.triniumhost.com:4333', auth: 'free', secure: false },
-        { name: 'Inodestar', url: 'lava.link:80', auth: 'youshallnotpass', secure: false },
-        { name: 'Gedo', url: 'lavalink.gedo.pw:443', auth: 'youshallnotpass', secure: true },
         { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
     ];
 
