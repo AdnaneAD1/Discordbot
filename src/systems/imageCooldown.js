@@ -7,9 +7,6 @@ const MAX_IMAGES_PER_DAY = 5;
 class ImageCooldown {
     async checkCooldown(guildId, userId) {
         const subscription = await getUserSubscription(userId);
-        if (subscription.tier.features.noCooldowns) {
-            return { allowed: true, remaining: 999, isPremium: true, maxImages: 999 };
-        }
 
         const maxImages = subscription.tier.features.imagesPerDay || MAX_IMAGES_PER_DAY;
         const now = Date.now();
@@ -46,9 +43,6 @@ class ImageCooldown {
     }
 
     async recordGeneration(guildId, userId) {
-        const subscription = await getUserSubscription(userId);
-        if (subscription.tier.features.noCooldowns) return;
-
         const now = Date.now();
         const cooldownRef = db.collection('users').doc(userId).collection('cooldowns').doc('image');
         const doc = await cooldownRef.get();

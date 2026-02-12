@@ -74,17 +74,16 @@ module.exports = {
             const newBalance = await Blackjack.getBalance(userId);
 
             const resultEmbed = new EmbedBuilder()
-                .setTitle(`🎰 RÉSULTAT : ${resultEmoji} ${resultNumber} ${resultColor.toUpperCase()} !`)
-                .setColor(multiplier > 0 ? '#2ecc71' : '#e74c3c')
+                .setTitle(`🎰 RÉSULTAT : ${resultEmoji} ${resultNumber} ${resultColor.toUpperCase()}`)
+                .setColor(multiplier > 0 ? '#00b894' : '#d63031')
                 .setThumbnail(multiplier > 0 ? 'https://cdn-icons-png.flaticon.com/512/7508/7508614.png' : 'https://cdn-icons-png.flaticon.com/512/10080/10080336.png')
+                .setDescription(`La bille s'est arrêtée sur le **${resultNumber}** (${resultEmoji}).`)
                 .addFields(
-                    { name: 'Résultat', value: `La bille est tombée sur **${resultNumber}** (${resultEmoji})`, inline: true },
-                    { name: 'Ton Pari', value: `${rawBetValue.toUpperCase()}`, inline: true },
-                    { name: '\u200B', value: '\u200B', inline: true }, // Spacer
-                    { name: multiplier > 0 ? '🏆 GAIN' : '💸 PERTE', value: multiplier > 0 ? `**+${payout}** 🪙 (x${multiplier})` : `**-${bet}** 🪙`, inline: true },
-                    { name: 'Nouveau Solde', value: `**${newBalance}** 🪙`, inline: true }
+                    { name: '✨ Ton Pari', value: `**${rawBetValue.toUpperCase()}**`, inline: true },
+                    { name: multiplier > 0 ? '💰 Profit' : '💸 Perte', value: multiplier > 0 ? `**+${profit}** 🪙 (x${multiplier})` : `**-${bet}** 🪙`, inline: true },
+                    { name: '👛 Nouveau Solde', value: `**${newBalance}** 🪙`, inline: true }
                 )
-                .setFooter({ text: 'Sigma Palace Casino • La maison gagne toujours ?' });
+                .setFooter({ text: 'Sigma Palace Casino • Bonne chance pour la prochaine !' });
 
             await interaction.editReply({ embeds: [resultEmbed] });
 

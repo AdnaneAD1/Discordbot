@@ -142,20 +142,25 @@ module.exports = {
                             inline: false
                         },
                         {
-                            name: '\u200b\n📊 TABLEAU COMPARATIF',
+                            name: '\u200b\n💎 RÉCAPITULATIF DES PRIVILÈGES',
                             value: [
-                                '```prolog',
-                                'FONCTIONNALITÉ      | GRATUIT | SIGMA | TITAN',
-                                '--------------------+---------+-------+-------',
-                                'Images / Jour       |    5    |   25  |  250  ',
-                                'Qualité Max         |   SD    |   HD  |  4K   ',
-                                'Styles IA           |    3    |   15  |  MAX  ',
-                                'Cooldown Image      |   Oui   |  Oui  |  NON  ',
-                                'Calculateur XP      |   x1    | x1.5  |  x2   ',
-                                'Cashback Casino     |   0%    |  10%  |  10%  ',
-                                'Frais de Skip 🎵    |  100🪙  |  Offert |  Offert',
-                                'Background Profil   |  Défaut | Défaut| CUSTOM',
-                                '```'
+                                '🚀 **Images IA par Jour**',
+                                '• Gratuit : 5 images',
+                                '• Sigma : 25 images',
+                                '• **Titan : 500 images**',
+                                '',
+                                '🖼️ **Qualité et Styles**',
+                                '• Gratuit : Qualité SD',
+                                '• Sigma : Qualité HD et 15 styles',
+                                '• **Titan : Qualité 4K et Styles Illimités**',
+                                '',
+                                '🎰 **Expérience Casino**',
+                                '• Sigma : 10% de Cashback sur vos pertes',
+                                '• **Titan : 10% Cashback et XP doublé (x2.0)**',
+                                '',
+                                '🎵 **Audio et Musique**',
+                                '• Sigma & Titan : Skip gratuit et son Haute Fidélité',
+                                '• Gratuit : Frais de skip de 100 jetons'
                             ].join('\n'),
                             inline: false
                         }

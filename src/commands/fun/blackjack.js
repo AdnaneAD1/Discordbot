@@ -31,31 +31,32 @@ module.exports = {
             const dealerScore = isGameOver ? Blackjack.calculateScore(dealerHand) : Blackjack.calculateScore([dealerHand[0]]);
 
             const embed = new EmbedBuilder()
-                .setTitle('🎰 SIGMA PALACE - BLACKJACK')
-                .setColor(isGameOver ? (playerScore > 21 || (dealerScore <= 21 && dealerScore > playerScore) ? '#e74c3c' : (playerScore === dealerScore ? '#95a5a6' : '#2ecc71')) : '#febc11')
+                .setTitle('🃏 SIGMA PALACE - BLACKJACK')
+                .setColor(isGameOver ? (playerScore > 21 || (dealerScore <= 21 && dealerScore > playerScore) ? '#ff4d4d' : (playerScore === dealerScore ? '#b2bec3' : '#2ecc71')) : '#febc11')
+                .setThumbnail('https://cdn-icons-png.flaticon.com/512/10539/10539871.png')
                 .addFields(
                     {
-                        name: '👤 Ta Main',
-                        value: `${Blackjack.formatHand(playerHand)}\n**Score: \`${playerScore}\`**`,
+                        name: `👤 Ta main (${playerScore})`,
+                        value: Blackjack.formatHand(playerHand),
                         inline: true
                     },
                     {
-                        name: '🎭 Dealer',
+                        name: `🎭 Dealer (${isGameOver ? dealerScore : '??'})`,
                         value: isGameOver
-                            ? `${Blackjack.formatHand(dealerHand)}\n**Score: \`${dealerScore}\`**`
-                            : `${Blackjack.formatHand([dealerHand[0]])} [\`??\`](http://sigma)\n**Score: \`??\`**`,
+                            ? Blackjack.formatHand(dealerHand)
+                            : `${Blackjack.formatHand([dealerHand[0]])} 🎴`,
                         inline: true
                     }
                 )
-                .setFooter({ text: `Mise: ${bet} 🪙 | Solde: ${balance - bet} 🪙` });
+                .setFooter({ text: `💰 Mise: ${bet} 🪙 | Solde: ${balance - bet} 🪙` });
 
             if (isGameOver) {
                 let result = '';
-                if (playerScore > 21) result = '💥 **BUST !** Tu as dépassé 21. Le casino gagne.';
-                else if (dealerScore > 21) result = '🎉 **GAGNÉ !** Le dealer a busté !';
-                else if (playerScore > dealerScore) result = '🏆 **GAGNÉ !** Tu as battu le dealer !';
-                else if (playerScore < dealerScore) result = '💀 **PERDU !** Le dealer gagne.';
-                else result = '🤝 **PUSH !** Match nul, mise remboursée.';
+                if (playerScore > 21) result = '💥 **BUST !** Tu as dépassé 21.\nLa maison gagne.';
+                else if (dealerScore > 21) result = '🎉 **GAGNÉ !** Le dealer a busté !\nTu remportes la mise.';
+                else if (playerScore > dealerScore) result = `🏆 **GAGNÉ !** Ta main est supérieure.\nFélicitations !`;
+                else if (playerScore < dealerScore) result = '💀 **PERDU !** Le dealer est plus fort.\nTente encore !';
+                else result = '🤝 **MATCH NUL !** Personne ne gagne.\nMise remboursée.';
 
                 embed.setDescription(result);
             }

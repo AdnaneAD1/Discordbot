@@ -63,7 +63,7 @@ const SUBSCRIPTION_TIERS = {
             yearly: 79.99
         },
         features: {
-            imagesPerDay: 250,
+            imagesPerDay: 500,
             imageQuality: '4k',
             imageStyles: -1,
             xpMultiplier: 2,
@@ -74,7 +74,6 @@ const SUBSCRIPTION_TIERS = {
             exclusiveBadge: '👑',
             maxPlaylists: 50,
             voteSkipWeight: 3,
-            noCooldowns: true,
             maxGuilds: 3
         }
     }
