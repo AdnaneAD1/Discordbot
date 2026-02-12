@@ -47,7 +47,7 @@ const PRODUCTS = {
         price: '7.99',
         currency: 'EUR',
         type: 'bundle',
-        tier: 'premium',
+        tier: 'SIGMA_PLAYER',
         amount: 120000,
         emoji: '💎'
     },
@@ -57,7 +57,7 @@ const PRODUCTS = {
         price: '19.99',
         currency: 'EUR',
         type: 'bundle',
-        tier: 'premium_plus',
+        tier: 'TITAN_SERVER',
         amount: 500000,
         emoji: '👑'
     },
@@ -69,7 +69,7 @@ const PRODUCTS = {
         price: '4.99',
         currency: 'EUR',
         type: 'subscription',
-        tier: 'premium',
+        tier: 'SIGMA_PLAYER',
         cycle: 'monthly',
         emoji: '✨'
     },
@@ -79,7 +79,7 @@ const PRODUCTS = {
         price: '9.99',
         currency: 'EUR',
         type: 'subscription',
-        tier: 'premium_plus',
+        tier: 'TITAN_SERVER',
         cycle: 'monthly',
         emoji: '🚀'
     }
