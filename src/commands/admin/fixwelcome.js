@@ -1,5 +1,7 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } = require('discord.js');
 const { db } = require('../../services/firebase');
+const { isGuildPremium } = require('../../services/subscriptions');
+const { generateWelcomeCard } = require('../../services/welcomeCard');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,6 +23,10 @@ module.exports = {
         const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
         const configDoc = await guildConfigRef.doc('channels').get();
         const welcomeChannelId = configDoc.data()?.welcomeChannelId;
+
+        // Statut Premium pour l'upgrade d'image
+        const premiumStatus = await isGuildPremium(guildId);
+        const welcomeConfig = (await guildConfigRef.doc('welcome').get()).data() || {};
 
         if (!welcomeChannelId) {
             return interaction.editReply('❌ Aucun salon de bienvenue n\'est configuré dans la base de données.');
@@ -102,6 +108,20 @@ module.exports = {
                         const updatePayload = { content: `<@${firstMentionId}>` };
                         if (hasEmbed) {
                             updatePayload.embeds = [EmbedBuilder.from(embed).setDescription(newDescription)];
+                        }
+
+                        // --- UPGRADE PREMIUM : Ajout de la carte si manquante ---
+                        if (premiumStatus.isPremium && !hasAttachment && welcomeConfig.isPremiumCard !== false) {
+                            try {
+                                const member = await interaction.guild.members.fetch(firstMentionId);
+                                if (member) {
+                                    const imageBuffer = await generateWelcomeCard(member, welcomeConfig);
+                                    const cardAttachment = new AttachmentBuilder(imageBuffer, { name: `welcome_${member.id}.png` });
+                                    updatePayload.files = [cardAttachment];
+                                }
+                            } catch (e) {
+                                console.log(`[FixWelcome] Impossible de générer la card pour ${firstMentionId} (Membre parti ?).`);
+                            }
                         }
 
                         await message.edit(updatePayload);
