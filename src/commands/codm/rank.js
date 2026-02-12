@@ -1,3 +1,4 @@
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { db } = require('../../services/firebase');
 const { CODM_GRADES } = require('../../systems/xp');
 
