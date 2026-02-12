@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const Blackjack = require('../../systems/casino');
+const { Blackjack } = require('../../systems/casino');
 const { db } = require('../../services/firebase');
 
 module.exports = {

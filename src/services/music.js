@@ -43,6 +43,34 @@ function getNodes() {
 
 let shoukaku;
 let nodeStatus = new Map();
+let currentStickyNodeName = null;
+
+/**
+ * Récupère le meilleur nœud "sticky" (récupère le premier disponible et y reste)
+ */
+function getStickyNode() {
+    if (!shoukaku) return null;
+
+    // Si on a déjà un nœud sélectionné et qu'il est connecté, on le garde
+    if (currentStickyNodeName) {
+        const node = shoukaku.nodes.get(currentStickyNodeName);
+        if (node && node.state === 1) { // 1 = CONNECTED
+            return node;
+        }
+    }
+
+    // Sinon, on cherche le premier nœud connecté dans l'ordre de priorité
+    const nodes = Array.from(shoukaku.nodes.values());
+    const connectedNode = nodes.find(n => n.state === 1);
+
+    if (connectedNode) {
+        currentStickyNodeName = connectedNode.name;
+        console.log(`🎯 Nouveau nœud sticky sélectionné : ${currentStickyNodeName}`);
+        return connectedNode;
+    }
+
+    return null;
+}
 
 // Stockage des players personnalisés avec queue et metadata
 const players = new Map();
@@ -165,7 +193,7 @@ async function getPlayer(guildId, channelId) {
         return players.get(guildId);
     }
 
-    const node = shoukaku.getIdealNode();
+    const node = getStickyNode() || shoukaku.getIdealNode();
     if (!node) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
@@ -280,9 +308,9 @@ async function search(query, requester) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
-    // On trie pour mettre le nœud idéal en premier
-    const idealNode = shoukaku.getIdealNode();
-    const sortedNodes = nodes.sort((a, b) => (a.name === idealNode?.name ? -1 : 1));
+    // On trie pour mettre le nœud sticky en premier s'il existe
+    const stickyNode = getStickyNode();
+    const sortedNodes = nodes.sort((a, b) => (a.name === stickyNode?.name ? -1 : 1));
 
     const searchQuery = getSearchQuery(query);
     let lastError = null;

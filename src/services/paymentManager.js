@@ -13,61 +13,75 @@ paypal.configure({
 const PRODUCTS = {
     // --- RECHARGES (Jetons seuls) ---
     'chips_small': {
-        name: 'Petite Recharge (35k)',
+        name: 'Petite Recharge 🪙',
+        description: '35,000 jetons pour bien commencer.',
         price: '2.99',
         currency: 'EUR',
         type: 'consumable',
-        amount: 35000
+        amount: 35000,
+        emoji: '🪙'
     },
     'chips_medium': {
-        name: 'Moyenne Recharge (150k)', // Aligné avec buychips
+        name: 'Grosse Recharge 💰',
+        description: '150,000 jetons pour parier gros.',
         price: '9.99',
         currency: 'EUR',
         type: 'consumable',
-        amount: 150000
+        amount: 150000,
+        emoji: '💰'
     },
     'chips_large': {
-        name: 'Grosse Recharge (500k)',
+        name: 'Coffre-Fort Titan 🏛️',
+        description: '500,000 jetons pour les légendes.',
         price: '29.99',
         currency: 'EUR',
         type: 'consumable',
-        amount: 500000
+        amount: 500000,
+        emoji: '🏛️'
     },
 
     // --- PACKS BUNDLES (Jetons + Grade) ---
     'bundle_sigma': {
-        name: 'Pack SIGMA PLAYER 💎', // Aligné avec buychips
+        name: 'Pack SIGMA PLAYER 💎',
+        description: '120,000 jetons + 30j Sigma Player + Badge PRO.',
         price: '7.99',
         currency: 'EUR',
         type: 'bundle',
         tier: 'premium',
-        amount: 120000 // 120k jetons
+        amount: 120000,
+        emoji: '💎'
     },
     'bundle_titan': {
-        name: 'Pack TITAN SERVER 👑', // Aligné avec buychips
+        name: 'Pack TITAN SERVER 👑',
+        description: '500,000 jetons + 30j Titan Server + Rôle Prestige.',
         price: '19.99',
         currency: 'EUR',
         type: 'bundle',
         tier: 'premium_plus',
-        amount: 500000 // 500k jetons
+        amount: 500000,
+        emoji: '👑'
     },
 
-    // --- ABONNEMENTS SEULS (Via /premium) ---
+    // --- ABONNEMENTS SEULS ---
     'sub_sigma': {
-        name: 'Abonnement Sigma (1 Mois)',
+        name: 'Abonnement Sigma Player 💎',
+        description: 'Accès aux fonctions Premium (HD, 25 images IA/j).',
         price: '4.99',
         currency: 'EUR',
         type: 'subscription',
         tier: 'premium',
-        cycle: 'monthly'
+        cycle: 'monthly',
+        emoji: '✨'
     },
     'sub_titan': {
-        name: 'Abonnement Titan (1 Mois)',
+        name: 'Abonnement Titan Server 👑',
+        description: 'Accès Ultime (4K, No Cooldown, Upload Background).',
         price: '9.99',
         currency: 'EUR',
         type: 'subscription',
         tier: 'premium_plus',
-        cycle: 'monthly'
+        cycle: 'monthly',
+        emoji: '🚀'
     }
 };
 
@@ -82,8 +96,8 @@ async function createPayPalPayment(userId, sku) {
         "intent": "sale",
         "payer": { "payment_method": "paypal" },
         "redirect_urls": {
-            "return_url": "https://discord.com/channels/@me", // Redirection fictive vers Discord
-            "cancel_url": "https://discord.com/channels/@me"
+            "return_url": `${process.env.PRODUCTION_URL || 'http://localhost:3000'}/health`,
+            "cancel_url": `${process.env.PRODUCTION_URL || 'http://localhost:3000'}/health`
         },
         "transactions": [{
             "item_list": {

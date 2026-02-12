@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
-const Blackjack = require('../../systems/casino');
+const { Blackjack } = require('../../systems/casino');
 
 module.exports = {
     data: new SlashCommandBuilder()
