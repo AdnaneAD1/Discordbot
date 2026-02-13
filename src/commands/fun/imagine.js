@@ -11,10 +11,6 @@ module.exports = {
             option.setName('prompt')
                 .setDescription('Description de l\'image (ou instruction de modification)')
                 .setRequired(true))
-        .addAttachmentOption(option =>
-            option.setName('image')
-                .setDescription('Image à modifier (Optionnel)')
-                .setRequired(false))
         .addStringOption(option =>
             option.setName('style')
                 .setDescription('Style artistique (Uniquement pour la génération)')
@@ -41,7 +37,6 @@ module.exports = {
     async execute(interaction) {
         const prompt = interaction.options.getString('prompt');
         const style = interaction.options.getString('style') || 'realistic';
-        const imageAttachment = interaction.options.getAttachment('image');
         const isPrivate = interaction.options.getBoolean('private') || false;
 
         // Validation du prompt
@@ -105,26 +100,14 @@ module.exports = {
         try {
             let result;
 
-            if (imageAttachment) {
-                // Mode Modification (Img2Img)
-                if (!imageAttachment.contentType.startsWith('image/')) {
-                    return interaction.editReply('❌ Le fichier fourni n\'est pas une image valide.');
-                }
-
-                // On met à jour le message d'attente
-                await interaction.editReply({ content: '🎨 Modification de l\'image en cours... (Cela peut prendre ~30s)' });
-
-                result = await modifyImage(imageAttachment.url, prompt, interaction.user.id);
-            } else {
-                // Mode Génération (Txt2Img)
-                result = await generateImage(prompt, {
-                    style,
-                    userId: interaction.user.id,
-                    guildId: interaction.guild.id,
-                    premium: cooldownCheck.isPremium || false,
-                    quality: (await require('../../services/subscriptions').getUserSubscription(interaction.user.id)).tier.features.imageQuality
-                });
-            }
+            // Mode Génération (Txt2Img)
+            result = await generateImage(prompt, {
+                style,
+                userId: interaction.user.id,
+                guildId: interaction.guild.id,
+                premium: cooldownCheck.isPremium || false,
+                quality: (await require('../../services/subscriptions').getUserSubscription(interaction.user.id)).tier.features.imageQuality
+            });
 
             // Enregistrement de la génération
             await imageCooldown.recordGeneration(interaction.guild.id, interaction.user.id);
@@ -134,10 +117,10 @@ module.exports = {
 
             // Création de l'embed
             const embed = new EmbedBuilder()
-                .setTitle(imageAttachment ? '🎨 Image Modifiée' : '🎨 Image Générée')
+                .setTitle('🎨 Image Générée')
                 .setDescription(`**Prompt :** ${prompt}`)
                 .addFields(
-                    { name: 'Mode', value: imageAttachment ? 'Modification (Img2Img)' : 'Génération', inline: true },
+                    { name: 'Mode', value: 'Génération (Txt2Img)', inline: true },
                     { name: 'Coût', value: cost > 0 ? `**${cost}** 🪙` : `${maxImages - (cooldownCheck.remaining - 1)}/${maxImages} (Gratuit)`, inline: true },
                     { name: 'Provider', value: result.providerName, inline: true }
                 )
@@ -145,10 +128,6 @@ module.exports = {
                 .setColor('#9b59b6')
                 .setFooter({ text: `Demandé par ${interaction.user.username} • Propulsé par ${result.providerName}` })
                 .setTimestamp();
-
-            if (imageAttachment) {
-                embed.setThumbnail(imageAttachment.url); // Affiche l'original en petit
-            }
 
             // Boutons d'action
             const row = new ActionRowBuilder()
@@ -178,8 +157,7 @@ module.exports = {
             interaction.client.imageCache = interaction.client.imageCache || new Map();
             interaction.client.imageCache.set(interaction.user.id, {
                 prompt,
-                style,
-                imageUrl: imageAttachment ? imageAttachment.url : null // On garde l'URL source
+                style
             });
 
         } catch (error) {

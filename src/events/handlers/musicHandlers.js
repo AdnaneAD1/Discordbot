@@ -30,8 +30,11 @@ async function handleMusicInteraction(interaction) {
 
     const COSTS = {
         'skip': 100,
+        'back': 50,
         'stop': 50,
-        'pause': 50
+        'pause': 50,
+        'loop': 20,
+        'shuffle': 20
     };
 
     // Vérification et Paiement pour les serveurs Non-Premium

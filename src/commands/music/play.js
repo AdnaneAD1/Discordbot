@@ -25,6 +25,23 @@ module.exports = {
             });
         }
 
+        // Vérification et Paiement pour les serveurs Non-Premium
+        const { isGuildPremium } = require('../../services/subscriptions');
+        const { Blackjack } = require('../../systems/casino');
+        const isPremium = (await isGuildPremium(interaction.guild.id)).isPremium;
+        const COST_SEARCH = 20;
+
+        if (!isPremium) {
+            const balance = await Blackjack.getBalance(interaction.user.id);
+            if (balance < COST_SEARCH) {
+                return interaction.reply({
+                    content: `❌ **Solde Insuffisant !**\nLa recherche musicale coûte **${COST_SEARCH}** 🪙.\nTon solde actuel : **${balance}** 🪙. Recharges tes jetons pour continuer !`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+            await Blackjack.updateBalance(interaction.user.id, -COST_SEARCH);
+        }
+
         await interaction.deferReply();
 
         try {

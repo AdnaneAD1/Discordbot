@@ -49,13 +49,13 @@ class Blackjack {
             await userRef.set({ casinoChips: 1000 }); // Bonus de bienvenue
             return 1000;
         }
-        return doc.data().casinoChips || 1000;
+        return doc.data().casinoChips ?? 1000;
     }
 
     static async updateBalance(userId, amount) {
         const userRef = db.collection('users').doc(userId);
         const doc = await userRef.get();
-        const current = doc.exists ? (doc.data().casinoChips || 1000) : 1000;
+        const current = doc.exists ? (doc.data().casinoChips ?? 1000) : 1000;
         await userRef.set({ casinoChips: current + amount }, { merge: true });
         return current + amount;
     }
