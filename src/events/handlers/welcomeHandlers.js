@@ -73,10 +73,17 @@ async function handleWelcomeInteraction(interaction) {
                         default: currentBg === bg.id
                     })));
 
-                const row = new ActionRowBuilder().addComponents(select);
+                const uploadBtn = new ButtonBuilder()
+                    .setCustomId('welcome_edit_bg_upload')
+                    .setLabel('Uploader mon image')
+                    .setEmoji('📤')
+                    .setStyle(ButtonStyle.Primary);
+
+                const row2 = new ActionRowBuilder().addComponents(uploadBtn);
+
                 return interaction.reply({
-                    content: '🎨 **Choisis un background :**',
-                    components: [row],
+                    content: '🎨 **Choisis un background ou upload le tien :**',
+                    components: [row, row2],
                     flags: [64]
                 });
             }
@@ -101,6 +108,42 @@ async function handleWelcomeInteraction(interaction) {
                     components: [row],
                     flags: [64]
                 });
+            }
+
+            case 'welcome_edit_bg_upload': {
+                const filter = m => m.author.id === interaction.user.id && m.attachments.size > 0;
+
+                await interaction.reply({
+                    content: '📤 **Envoie l\'image que tu souhaites utiliser comme background.**\n(Le format recommandé est **1024x450**. L\'image doit être envoyée dans ce salon.)',
+                    flags: [64]
+                });
+
+                try {
+                    const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+                    const message = collected.first();
+                    const attachment = message.attachments.first();
+
+                    if (!attachment.contentType?.startsWith('image/')) {
+                        return interaction.followUp({ content: '❌ Le fichier envoyé n\'est pas une image valide.', flags: [64] });
+                    }
+
+                    await welcomeRef.set({
+                        backgroundId: 'custom',
+                        customBackgroundUrl: attachment.url
+                    }, { merge: true });
+
+                    configCache.invalidate(guildId, 'welcome');
+
+                    await interaction.followUp({ content: '✅ **Background personnalisé appliqué !** Mise à jour du dashboard...', flags: [64] });
+
+                    // On essaie de supprimer le message de l'utilisateur pour garder le salon propre
+                    try { await message.delete(); } catch (e) { }
+
+                    return refreshDashboard();
+
+                } catch (e) {
+                    return interaction.followUp({ content: '⏱️ **Temps écoulé.** Aucune image n\'a été reçue.', flags: [64] });
+                }
             }
 
             case 'welcome_refresh': {

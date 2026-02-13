@@ -8,6 +8,10 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('welcome-setup')
         .setDescription('Ouvre le panneau de configuration Welcome Premium 🖼️')
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image de fond personnalisée (Optionnel)')
+                .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
@@ -29,6 +33,21 @@ module.exports = {
             }
 
             const welcomeRef = db.collection('guilds').doc(guildId).collection('config').doc('welcome');
+            const imageAttachment = isInitial ? interaction.options.getAttachment('image') : null;
+
+            if (imageAttachment) {
+                if (!imageAttachment.contentType?.startsWith('image/')) {
+                    const errorMsg = '❌ Le fichier fourni n\'est pas une image valide.';
+                    return isInitial ? interaction.editReply(errorMsg) : interaction.reply({ content: errorMsg, flags: [64] });
+                }
+
+                await welcomeRef.set({
+                    backgroundId: 'custom',
+                    customBackgroundUrl: imageAttachment.url
+                }, { merge: true });
+                configCache.invalidate(guildId, 'welcome');
+            }
+
             const welcomeConfig = (await welcomeRef.get()).data() || {};
 
             // Générer l'aperçu
