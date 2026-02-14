@@ -79,6 +79,7 @@ async function handleWelcomeInteraction(interaction) {
                     .setEmoji('📤')
                     .setStyle(ButtonStyle.Primary);
 
+                const row = new ActionRowBuilder().addComponents(select);
                 const row2 = new ActionRowBuilder().addComponents(uploadBtn);
 
                 return interaction.reply({
