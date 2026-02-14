@@ -98,30 +98,36 @@ module.exports = {
                     if (hasResolvedForThisMessage || (hasAttachment && matchesInContent.length > 0)) {
                         const firstMentionId = Array.from(resolvedMemberIds)[0] || allMatches[0][1];
 
-                        // Petit toggle invisible pour forcer le refresh
-                        if (newDescription.includes('\u200b')) {
-                            newDescription = newDescription.replace(/\u200b/g, '');
-                        } else {
-                            newDescription = newDescription + '\u200b';
-                        }
+                        let updatePayload = { content: `<@${firstMentionId}>` };
+                        let cardGenerated = false;
 
-                        const updatePayload = { content: `<@${firstMentionId}>` };
-                        if (hasEmbed) {
-                            updatePayload.embeds = [EmbedBuilder.from(embed).setDescription(newDescription)];
-                        }
-
-                        // --- UPGRADE PREMIUM : Ajout de la carte si manquante ---
+                        // --- UPGRADE PREMIUM : Remplacement par la Carte (si activé) ---
                         if (premiumStatus.isPremium && !hasAttachment && welcomeConfig.isPremiumCard !== false) {
                             try {
                                 const member = await interaction.guild.members.fetch(firstMentionId);
                                 if (member) {
                                     const imageBuffer = await generateWelcomeCard(member, welcomeConfig);
                                     const cardAttachment = new AttachmentBuilder(imageBuffer, { name: `welcome_${member.id}.png` });
+
+                                    // Sur Premium, on remplace l'embed par l'image seule (comme le live event)
                                     updatePayload.files = [cardAttachment];
+                                    updatePayload.embeds = [];
+                                    cardGenerated = true;
                                 }
                             } catch (e) {
-                                console.log(`[FixWelcome] Impossible de générer la card pour ${firstMentionId} (Membre parti ?).`);
+                                console.log(`[FixWelcome] Impossible de générer la card pour ${firstMentionId} (Membre parti ?). Fallback Standard.`);
                             }
+                        }
+
+                        // --- FALLBACK STANDARD (Non-Premium ou Échec Génération) ---
+                        if (!cardGenerated && hasEmbed) {
+                            // Petit toggle invisible pour forcer le refresh
+                            if (newDescription.includes('\u200b')) {
+                                newDescription = newDescription.replace(/\u200b/g, '');
+                            } else {
+                                newDescription = newDescription + '\u200b';
+                            }
+                            updatePayload.embeds = [EmbedBuilder.from(embed).setDescription(newDescription)];
                         }
 
                         await message.edit(updatePayload);
