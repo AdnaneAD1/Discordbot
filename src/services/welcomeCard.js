@@ -227,5 +227,6 @@ module.exports = {
     generateWelcomeCard,
     getAvailableBackgrounds,
     getBackground,
-    BACKGROUNDS
+    BACKGROUNDS,
+    SUPPORTED_FONTS
 };

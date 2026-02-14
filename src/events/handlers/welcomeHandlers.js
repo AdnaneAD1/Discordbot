@@ -22,6 +22,7 @@ async function handleWelcomeInteraction(interaction) {
                 const isPremiumCard = doc.data()?.isPremiumCard || false;
                 await welcomeRef.set({ isPremiumCard: !isPremiumCard }, { merge: true });
                 configCache.invalidate(guildId, 'welcome');
+                await interaction.deferUpdate();
                 return refreshDashboard();
             }
 
@@ -90,7 +91,8 @@ async function handleWelcomeInteraction(interaction) {
             }
 
             case 'welcome_edit_font': {
-                const { SUPPORTED_FONTS } = require('../../services/welcomeCard');
+                const welcomeCardService = require('../../services/welcomeCard');
+                const SUPPORTED_FONTS = welcomeCardService.SUPPORTED_FONTS;
                 const doc = await welcomeRef.get();
                 const currentFont = doc.data()?.fontFamily || 'Arial';
 
@@ -148,6 +150,7 @@ async function handleWelcomeInteraction(interaction) {
             }
 
             case 'welcome_refresh': {
+                await interaction.deferUpdate();
                 return refreshDashboard();
             }
         }

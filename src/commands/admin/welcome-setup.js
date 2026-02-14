@@ -18,8 +18,13 @@ module.exports = {
         const guildId = interaction.guild.id;
 
         // On peut être appelé via la commande slash ou via un bouton de rafraîchissement
+        // Check if interaction is already deferred or replied (from handlers)
+        const isDeferredOrReplied = interaction.deferred || interaction.replied;
         const isInitial = interaction.isChatInputCommand();
-        if (isInitial) await interaction.deferReply({ flags: [64] });
+
+        if (isInitial && !isDeferredOrReplied) {
+            await interaction.deferReply({ flags: [64] });
+        }
 
         try {
             // Vérifier si le serveur est premium
@@ -29,7 +34,7 @@ module.exports = {
                     content: '⭐ Cette fonctionnalité nécessite un abonnement **Premium**.\nUn membre premium peut activer ses avantages sur ce serveur via `/premium activate`.',
                     flags: [64]
                 };
-                return isInitial ? interaction.editReply(reply) : interaction.reply(reply);
+                return (isInitial || isDeferredOrReplied) ? interaction.editReply(reply) : interaction.reply(reply);
             }
 
             const welcomeRef = db.collection('guilds').doc(guildId).collection('config').doc('welcome');
@@ -38,7 +43,7 @@ module.exports = {
             if (imageAttachment) {
                 if (!imageAttachment.contentType?.startsWith('image/')) {
                     const errorMsg = '❌ Le fichier fourni n\'est pas une image valide.';
-                    return isInitial ? interaction.editReply(errorMsg) : interaction.reply({ content: errorMsg, flags: [64] });
+                    return (isInitial || isDeferredOrReplied) ? interaction.editReply(errorMsg) : interaction.reply({ content: errorMsg, flags: [64] });
                 }
 
                 await welcomeRef.set({
@@ -113,7 +118,7 @@ module.exports = {
         } catch (error) {
             console.error('[WelcomeSetup] Erreur dashboard:', error);
             const errorReply = { content: '❌ Erreur lors de l\'ouverture du panneau de configuration.' };
-            return isInitial ? interaction.editReply(errorReply) : interaction.followUp(errorReply);
+            return (isInitial || isDeferredOrReplied) ? interaction.editReply(errorReply) : interaction.followUp(errorReply);
         }
     }
 };
