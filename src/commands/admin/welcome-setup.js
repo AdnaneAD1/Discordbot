@@ -46,9 +46,22 @@ module.exports = {
                     return (isInitial || isDeferredOrReplied) ? interaction.editReply(errorMsg) : interaction.reply({ content: errorMsg, flags: [64] });
                 }
 
+                const { uploadFromUrl, isConfigured } = require('../../services/cloudinary');
+                let backgroundUrl = imageAttachment.url;
+
+                if (isConfigured()) {
+                    const uploadResult = await uploadFromUrl(imageAttachment.url, 'welcome_backgrounds', `bg_${guildId}`);
+                    if (uploadResult.success) {
+                        backgroundUrl = uploadResult.url;
+                    } else {
+                        console.error('[WelcomeSetup] Erreur Cloudinary:', uploadResult.error);
+                        // On continue avec l'URL Discord en fallback, mais on log l'erreur
+                    }
+                }
+
                 await welcomeRef.set({
                     backgroundId: 'custom',
-                    customBackgroundUrl: imageAttachment.url
+                    customBackgroundUrl: backgroundUrl
                 }, { merge: true });
                 configCache.invalidate(guildId, 'welcome');
             }

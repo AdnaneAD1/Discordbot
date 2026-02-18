@@ -25,7 +25,7 @@ async function uploadFromUrl(imageUrl, folder = 'bot_assets', publicId = null) {
             resource_type: 'image',
             overwrite: true,
             transformation: [
-                { width: 1200, height: 600, crop: 'fill', quality: 'auto' }
+                { width: 1024, height: 450, crop: 'fill', quality: 'auto' }
             ]
         };
 

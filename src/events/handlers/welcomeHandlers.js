@@ -130,9 +130,22 @@ async function handleWelcomeInteraction(interaction) {
                         return interaction.followUp({ content: '❌ Le fichier envoyé n\'est pas une image valide.', flags: [64] });
                     }
 
+                    const { uploadFromUrl, isConfigured } = require('../../services/cloudinary');
+                    let backgroundUrl = attachment.url;
+
+                    if (isConfigured()) {
+                        const uploadResult = await uploadFromUrl(attachment.url, 'welcome_backgrounds', `bg_${guildId}`);
+                        if (uploadResult.success) {
+                            backgroundUrl = uploadResult.url;
+                        } else {
+                            console.error('[WelcomeHandler] Erreur Cloudinary:', uploadResult.error);
+                            // On continue avec l'URL Discord en fallback
+                        }
+                    }
+
                     await welcomeRef.set({
                         backgroundId: 'custom',
-                        customBackgroundUrl: attachment.url
+                        customBackgroundUrl: backgroundUrl
                     }, { merge: true });
 
                     configCache.invalidate(guildId, 'welcome');
