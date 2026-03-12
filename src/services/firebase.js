@@ -8,7 +8,13 @@ if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !p
 let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 if (privateKey) {
     // Handle cases where the key might be wrapped in quotes or have literal \n
+    // and ensure it starts/ends with the correct PEM markers
     privateKey = privateKey.replace(/^"(.*)"$/, '$1').replace(/\\n/g, '\n');
+
+    // Safety check: ensure the key has the correct headers
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+    }
 }
 
 const serviceAccount = {
@@ -17,19 +23,26 @@ const serviceAccount = {
     private_key: privateKey,
 };
 
+let db = null;
+
 if (!admin.apps.length) {
     try {
+        if (!serviceAccount.project_id || !serviceAccount.private_key) {
+            throw new Error('Variables d\'environnement Firebase manquantes (PROJECT_ID ou PRIVATE_KEY)');
+        }
+
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
         });
         console.log('✅ Firebase initialisé avec succès !');
+        db = admin.firestore();
     } catch (error) {
-        console.error('❌ Erreur lors de l\'initialisation de Firebase :', error.message);
-        // On continue pour ne pas faire crash tout le bot si possible, 
-        // mais les fonctions DB échoueront plus tard.
+        console.error('❌ ERREUR CRITIQUE : Échec de l\'initialisation de Firebase.');
+        console.error('Détails :', error.message);
+        console.error('ASTUCE : Sur Render, assurez-vous que FIREBASE_PRIVATE_KEY est entourée de guillemets "" ou contient les \\n littéraux.');
     }
+} else {
+    db = admin.firestore();
 }
-
-const db = admin.firestore();
 
 module.exports = { db, admin };

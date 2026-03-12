@@ -65,13 +65,13 @@ const { cleanupExpiredChallenges } = require('./systems/challenges');
 const { initGiveaways } = require('./systems/giveaways');
 const { startServer } = require('./api/server');
 
+// Démarrage du serveur Web IMMÉDIAT (Important pour Render)
+startServer(client);
+
 client.once(Events.ClientReady, () => {
     console.log(`[Bot] Logged in as ${client.user.tag}!`);
 
-    // Démarrage du serveur Web (Webhooks)
-    startServer(client);
-
-    // Nettoyage initial au démarrage
+    // Initialisations au démarrage
     cleanupExpiredChallenges(client);
     initGiveaways(client);
     client.werewolf.initGames();
