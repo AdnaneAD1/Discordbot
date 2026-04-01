@@ -20,7 +20,7 @@ for (const folder of commandFolders) {
         }
     }
 }
-// bonjour
+
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
