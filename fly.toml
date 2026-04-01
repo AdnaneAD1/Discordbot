@@ -1,6 +1,6 @@
 # Configuration Deploy Fly.io
 # Remplace "nom-de-ton-app" par un nom unique, par ex: "mon-bot-lg-123"
-app = "botdiscord-mca5oq"
+app = "botdiscord-bfv7hg"
 primary_region = "fra"
 
 [build]
