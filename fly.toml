@@ -1,0 +1,18 @@
+# Configuration Deploy Fly.io
+# Remplace "nom-de-ton-app" par un nom unique, par ex: "mon-bot-lg-123"
+app = "bot-discord-ado"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080" # On force le port 8080 pour Fly.io
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false # IMPORTANT: empêche le bot de s'éteindre tout seul
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]

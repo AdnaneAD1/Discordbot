@@ -109,7 +109,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 function startServer(client) {
     if (client) app.set('discordClient', client);
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`[Server] Webhook server listening on port ${PORT}`);
     });
 }
