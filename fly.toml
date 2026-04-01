@@ -1,18 +1,23 @@
-# Configuration Deploy Fly.io
-# Remplace "nom-de-ton-app" par un nom unique, par ex: "mon-bot-lg-123"
-app = "botdiscord-bfv7hg"
-primary_region = "fra"
+# fly.toml app configuration file generated for botdiscord-bfv7hg on 2026-04-01T13:11:23Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'botdiscord-bfv7hg'
+primary_region = 'fra'
 
 [build]
-  dockerfile = "Dockerfile"
-
-[env]
-  PORT = "8080" # On force le port 8080 pour Fly.io
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false # IMPORTANT: empêche le bot de s'éteindre tout seul
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
-  processes = ["app"]
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
