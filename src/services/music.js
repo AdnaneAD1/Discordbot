@@ -189,7 +189,7 @@ const initMusic = (client) => {
 /**
  * Crée ou récupère un player pour un serveur
  */
-async function getPlayer(guildId, channelId) {
+async function getPlayer(guildId, channelId, shardId) {
     if (players.has(guildId)) {
         return players.get(guildId);
     }
@@ -199,43 +199,76 @@ async function getPlayer(guildId, channelId) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
-    const connection = await shoukaku.joinVoiceChannel({
-        guildId: guildId,
-        channelId: channelId,
-        shardId: 0,
-        deaf: true
-    });
+    // Assurer que les paramètres sont au bon format pour Shoukaku/Lavalink v4
+    const sGuildId = String(guildId);
+    const sChannelId = String(channelId);
+    const nShardId = Number(shardId) || 0;
 
-    const player = new MusicPlayer(guildId, connection);
-    players.set(guildId, player);
+    let lastError = null;
+    let attempts = 0;
+    const maxAttempts = 2;
 
-    // Gérer la fin d'une piste
-    connection.on('end', async (data) => {
-        if (data.reason === 'replaced') return;
+    while (attempts < maxAttempts) {
+        try {
+            attempts++;
+            const connection = await shoukaku.joinVoiceChannel({
+                guildId: sGuildId,
+                channelId: sChannelId,
+                shardId: nShardId,
+                deaf: true,
+                nodeName: node.name // On force l'utilisation du nœud sélectionné
+            });
 
-        const nextTrack = player.nextTrack();
-        if (nextTrack) {
-            await playTrack(player, nextTrack);
-        } else {
-            // File vide
-            if (player.textChannel) {
-                player.textChannel.send('📂 La file d\'attente est vide. À bientôt !').catch(() => { });
+            const player = new MusicPlayer(sGuildId, connection);
+            players.set(sGuildId, player);
+
+            // Gérer la fin d'une piste
+            connection.on('end', async (data) => {
+                if (data.reason === 'replaced') return;
+
+                const nextTrack = player.nextTrack();
+                if (nextTrack) {
+                    await playTrack(player, nextTrack);
+                } else {
+                    // File vide
+                    if (player.textChannel) {
+                        player.textChannel.send('📂 La file d\'attente est vide. À bientôt !').catch(() => { });
+                    }
+                    destroyPlayer(sGuildId);
+                }
+            });
+
+            // Gérer la déconnexion
+            connection.on('closed', (data) => {
+                console.warn(`⚠️ Connexion vocale fermée pour ${sGuildId}:`, data.reason);
+                destroyPlayer(sGuildId);
+            });
+
+            connection.on('error', (error) => {
+                console.error(`❌ Erreur player ${sGuildId}:`, error);
+            });
+
+            return player;
+        } catch (error) {
+            lastError = error;
+            const isRestError400 = error.name === 'RestError' && error.status === 400;
+
+            if (isRestError400 && attempts < maxAttempts) {
+                console.warn(`[Music] ⚠️ RestError 400 détectée lors du join (${sGuildId}). Tentative de retry ${attempts}/${maxAttempts} après 1s...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
             }
-            destroyPlayer(guildId);
+
+            // Si ce n'est pas un 400 ou si on a épuisé les retries
+            console.error(`[Music] ❌ Échec de connexion au salon vocal (${sGuildId}) (Essai ${attempts}/${maxAttempts}):`, error.message || error);
+            
+            if (error.name === 'RestError') {
+                console.error(`[Music] Détails techniques - Status: ${error.status}, Path: ${error.path}`);
+            }
+            
+            throw error;
         }
-    });
-
-    // Gérer la déconnexion
-    connection.on('closed', (data) => {
-        console.warn(`⚠️ Connexion vocale fermée pour ${guildId}:`, data.reason);
-        destroyPlayer(guildId);
-    });
-
-    connection.on('error', (error) => {
-        console.error(`❌ Erreur player ${guildId}:`, error);
-    });
-
-    return player;
+    }
 }
 
 /**

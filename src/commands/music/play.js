@@ -54,7 +54,7 @@ module.exports = {
             }
 
             // Obtenir ou créer un player
-            const player = await getPlayer(interaction.guild.id, voiceChannel.id);
+            const player = await getPlayer(interaction.guild.id, voiceChannel.id, interaction.guild.shardId);
             player.textChannel = interaction.channel;
 
             if (loadType === 'playlist') {
