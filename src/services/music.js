@@ -211,7 +211,7 @@ async function getPlayer(guildId, channelId, shardId) {
     while (attempts < maxAttempts) {
         try {
             attempts++;
-            const connection = await node.joinChannel({
+            const connection = await shoukaku.joinVoiceChannel({
                 guildId: sGuildId,
                 channelId: sChannelId,
                 shardId: nShardId,
