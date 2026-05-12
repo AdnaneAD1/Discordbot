@@ -23,6 +23,6 @@
     "node-fetch": "^3.3.2",
     "paypal-rest-sdk": "^1.8.1",
     "rss-parser": "^3.13.0",
-    "shoukaku": "^4.1.0"
+    "shoukaku": "^4.3.0"
   }
 }
