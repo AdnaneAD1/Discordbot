@@ -642,7 +642,8 @@ const SEARCH_ENGINES = {
     YOUTUBE_MUSIC: 'ytmsearch',
     SPOTIFY: 'spsearch',
     SOUNDCLOUD: 'scsearch',
-    DEEZER: 'dzsearch'
+    DEEZER: 'dzsearch',
+    APPLE_MUSIC: 'amsearch'
 };
 
 function getSearchQuery(query) {
