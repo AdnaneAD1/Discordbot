@@ -26,13 +26,13 @@ function getNodes() {
     }
 
     // Nœuds publics gratuits comme fallback (Pool de secours)
+    // Source: https://lavalink.darrennathanael.com/ (Mis à jour Mai 2026)
     const publicNodes = [
-        { name: 'Serenetia-S', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
-        { name: 'Serenetia-WS', url: 'lavalinkv4.serenetia.com:80', auth: 'https://dsc.gg/ajidevserver', secure: false },
-        { name: 'Serenetia-Fallback', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
-        { name: 'Trinium', url: 'lavalink.triniumhost.com:4333', auth: 'free', secure: false },
+        { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://seretia.link/discord', secure: true },
         { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true },
-        { name: 'Lavamoon', url: 'lavamoon.app:443', auth: 'youshallnotpass', secure: true }
+        { name: 'AneFaiz', url: 'lava-v4.millohost.my.id:443', auth: 'https://discord.gg/mjS5J2K3ep', secure: true },
+        { name: 'Trinium', url: 'lavalink-v4.triniumhost.com:443', auth: 'free', secure: true },
+        { name: 'Stackryze', url: '188.245.207.225:2333', auth: 'youshallnotpass', secure: false }
     ];
 
     // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent
@@ -194,29 +194,37 @@ async function getPlayer(guildId, channelId, shardId) {
         return players.get(guildId);
     }
 
-    const node = getStickyNode() || shoukaku.getIdealNode();
-    if (!node) {
-        throw new Error('Aucun nœud Lavalink disponible');
-    }
-
     // Assurer que les paramètres sont au bon format pour Shoukaku/Lavalink v4
     const sGuildId = String(guildId);
     const sChannelId = String(channelId);
     const nShardId = Number(shardId) || 0;
 
-    let lastError = null;
-    let attempts = 0;
-    const maxAttempts = 2;
+    // Récupérer tous les nœuds connectés, en mettant le sticky en premier
+    const allNodes = Array.from(shoukaku.nodes.values()).filter(n => n.state === 1);
+    if (allNodes.length === 0) {
+        throw new Error('Aucun nœud Lavalink disponible');
+    }
 
-    while (attempts < maxAttempts) {
+    const stickyNode = getStickyNode();
+    const sortedNodes = allNodes.sort((a, b) => (a.name === stickyNode?.name ? -1 : 1));
+
+    let lastError = null;
+
+    // Essayer chaque nœud disponible jusqu'à ce qu'un fonctionne
+    for (let i = 0; i < sortedNodes.length; i++) {
+        const targetNode = sortedNodes[i];
+        console.log(`[Music] 🔄 Tentative de connexion vocale via le nœud "${targetNode.name}" (${i + 1}/${sortedNodes.length})...`);
+
         try {
-            attempts++;
             const connection = await shoukaku.joinVoiceChannel({
                 guildId: sGuildId,
                 channelId: sChannelId,
                 shardId: nShardId,
                 deaf: true
             });
+
+            console.log(`[Music] ✅ Connecté au salon vocal via "${targetNode.name}" !`);
+            currentStickyNodeName = targetNode.name;
 
             const player = new MusicPlayer(sGuildId, connection);
             players.set(sGuildId, player);
@@ -250,24 +258,28 @@ async function getPlayer(guildId, channelId, shardId) {
             return player;
         } catch (error) {
             lastError = error;
-            const isRestError400 = error.name === 'RestError' && error.status === 400;
+            console.error(`[Music] ❌ Échec via "${targetNode.name}": ${error.message || error}`);
 
-            if (isRestError400 && attempts < maxAttempts) {
-                console.warn(`[Music] ⚠️ RestError 400 détectée lors du join (${sGuildId}). Tentative de retry ${attempts}/${maxAttempts} après 1s...`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                continue;
-            }
-
-            // Si ce n'est pas un 400 ou si on a épuisé les retries
-            console.error(`[Music] ❌ Échec de connexion au salon vocal (${sGuildId}) (Essai ${attempts}/${maxAttempts}):`, error.message || error);
-            
             if (error.name === 'RestError') {
-                console.error(`[Music] Détails techniques - Status: ${error.status}, Path: ${error.path}`);
+                console.error(`[Music] Détails - Status: ${error.status}, Path: ${error.path}`);
             }
-            
-            throw error;
+
+            // Marquer ce nœud comme problématique et invalider le sticky
+            if (currentStickyNodeName === targetNode.name) {
+                currentStickyNodeName = null;
+            }
+
+            // Attendre un peu avant d'essayer le nœud suivant
+            if (i < sortedNodes.length - 1) {
+                console.log(`[Music] ⏳ Attente 2s avant d'essayer le nœud suivant...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
         }
     }
+
+    // Tous les nœuds ont échoué
+    console.error(`[Music] 💀 Tous les nœuds Lavalink ont échoué (${sortedNodes.length} testés).`);
+    throw lastError;
 }
 
 /**
