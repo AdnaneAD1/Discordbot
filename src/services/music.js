@@ -211,12 +211,11 @@ async function getPlayer(guildId, channelId, shardId) {
     while (attempts < maxAttempts) {
         try {
             attempts++;
-            const connection = await shoukaku.joinVoiceChannel({
+            const connection = await node.joinChannel({
                 guildId: sGuildId,
                 channelId: sChannelId,
                 shardId: nShardId,
-                deaf: true,
-                nodeName: node.name // On force l'utilisation du nœud sélectionné
+                deaf: true
             });
 
             const player = new MusicPlayer(sGuildId, connection);
