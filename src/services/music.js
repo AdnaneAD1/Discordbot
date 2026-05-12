@@ -25,14 +25,15 @@ function getNodes() {
         });
     }
 
-    // Nœuds publics gratuits comme fallback (Pool de secours)
-    // Source: https://lavalink.darrennathanael.com/ (Mis à jour Mai 2026)
+    // Nœuds publics gratuits (Mis à jour Mai 2026)
+    // Source: https://lavalink-status.triniumhost.com + https://lavalink.darrennathanael.com/
     const publicNodes = [
         { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://seretia.link/discord', secure: true },
-        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true },
-        { name: 'AneFaiz', url: 'lava-v4.millohost.my.id:443', auth: 'https://discord.gg/mjS5J2K3ep', secure: true },
-        { name: 'Trinium', url: 'lavalink-v4.triniumhost.com:443', auth: 'free', secure: true },
-        { name: 'Stackryze', url: '188.245.207.225:2333', auth: 'youshallnotpass', secure: false }
+        { name: 'Trinium-SSL', url: 'lavalink-v4.triniumhost.com:443', auth: 'free', secure: true },
+        { name: 'Trinium-2333', url: 'lavalink.triniumhost.com:2333', auth: 'kirito', secure: false },
+        { name: 'NexCloud', url: 'n3.nexcloud.in:2026', auth: 'nexcloud', secure: false },
+        { name: 'VexaNode', url: 'omega.vexanode.cloud:2031', auth: 'https://discord.vexanode.cloud', secure: false },
+        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
     ];
 
     // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent
@@ -45,6 +46,7 @@ function getNodes() {
 let shoukaku;
 let nodeStatus = new Map();
 let currentStickyNodeName = null;
+let forcedNodeName = null; // Pour forcer un nœud spécifique lors des retries
 
 /**
  * Récupère le meilleur nœud "sticky" (récupère le premier disponible et y reste)
@@ -154,6 +156,23 @@ const initMusic = (client) => {
         resumeTimeout: 60,
         reconnectTries: 5,
         restTimeout: 15000,
+        // NodeResolver personnalisé : supporte la sélection forcée pour les retries
+        nodeResolver: (nodes) => {
+            // Si un nœud est forcé (retry), l'utiliser
+            if (forcedNodeName) {
+                const forced = nodes.get(forcedNodeName);
+                if (forced && forced.state === 1) return forced;
+            }
+            // Sinon, sticky node
+            if (currentStickyNodeName) {
+                const sticky = nodes.get(currentStickyNodeName);
+                if (sticky && sticky.state === 1) return sticky;
+            }
+            // Sinon, nœud avec le moins de pénalités
+            return [...nodes.values()]
+                .filter(n => n.state === 1)
+                .sort((a, b) => a.penalties - b.penalties)[0];
+        }
     });
 
     // Événements Shoukaku (gestion des nœuds)
@@ -183,6 +202,18 @@ const initMusic = (client) => {
         console.log(`🔄 Tentative de reconnexion au nœud "${name}" (${info})`);
     });
 
+    // Debug logging pour diagnostiquer les problèmes de connexion vocale
+    shoukaku.on('debug', (name, info) => {
+        if (typeof info === 'string' && (info.includes('Voice') || info.includes('voice') || info.includes('Server') || info.includes('Session'))) {
+            console.log(`[Shoukaku Debug] [${name}] ${info}`);
+        }
+    });
+
+    shoukaku.on('raw', (name, json) => {
+        if (json.op === 'event' || json.op === 'playerUpdate') return; // Skip noisy events
+        console.log(`[Shoukaku Raw] [${name}] op=${json.op}`);
+    });
+
     return shoukaku;
 };
 
@@ -199,21 +230,26 @@ async function getPlayer(guildId, channelId, shardId) {
     const sChannelId = String(channelId);
     const nShardId = Number(shardId) || 0;
 
-    // Récupérer tous les nœuds connectés, en mettant le sticky en premier
-    const allNodes = Array.from(shoukaku.nodes.values()).filter(n => n.state === 1);
+    // Récupérer tous les nœuds connectés, triés par pénalités
+    const allNodes = Array.from(shoukaku.nodes.values())
+        .filter(n => n.state === 1)
+        .sort((a, b) => a.penalties - b.penalties);
+
     if (allNodes.length === 0) {
         throw new Error('Aucun nœud Lavalink disponible');
     }
 
-    const stickyNode = getStickyNode();
-    const sortedNodes = allNodes.sort((a, b) => (a.name === stickyNode?.name ? -1 : 1));
+    console.log(`[Music] 📡 ${allNodes.length} nœud(s) Lavalink connecté(s): ${allNodes.map(n => n.name).join(', ')}`);
 
     let lastError = null;
 
     // Essayer chaque nœud disponible jusqu'à ce qu'un fonctionne
-    for (let i = 0; i < sortedNodes.length; i++) {
-        const targetNode = sortedNodes[i];
-        console.log(`[Music] 🔄 Tentative de connexion vocale via le nœud "${targetNode.name}" (${i + 1}/${sortedNodes.length})...`);
+    for (let i = 0; i < allNodes.length; i++) {
+        const targetNode = allNodes[i];
+        console.log(`[Music] 🔄 Tentative via "${targetNode.name}" (session: ${targetNode.sessionId}) [${i + 1}/${allNodes.length}]...`);
+
+        // Forcer Shoukaku à utiliser CE nœud via notre nodeResolver
+        forcedNodeName = targetNode.name;
 
         try {
             const connection = await shoukaku.joinVoiceChannel({
@@ -223,8 +259,10 @@ async function getPlayer(guildId, channelId, shardId) {
                 deaf: true
             });
 
-            console.log(`[Music] ✅ Connecté au salon vocal via "${targetNode.name}" !`);
+            // Succès ! Réinitialiser le forçage
+            forcedNodeName = null;
             currentStickyNodeName = targetNode.name;
+            console.log(`[Music] ✅ Connecté au salon vocal via "${targetNode.name}" !`);
 
             const player = new MusicPlayer(sGuildId, connection);
             players.set(sGuildId, player);
@@ -237,7 +275,6 @@ async function getPlayer(guildId, channelId, shardId) {
                 if (nextTrack) {
                     await playTrack(player, nextTrack);
                 } else {
-                    // File vide
                     if (player.textChannel) {
                         player.textChannel.send('📂 La file d\'attente est vide. À bientôt !').catch(() => { });
                     }
@@ -245,7 +282,6 @@ async function getPlayer(guildId, channelId, shardId) {
                 }
             });
 
-            // Gérer la déconnexion
             connection.on('closed', (data) => {
                 console.warn(`⚠️ Connexion vocale fermée pour ${sGuildId}:`, data.reason);
                 destroyPlayer(sGuildId);
@@ -258,27 +294,41 @@ async function getPlayer(guildId, channelId, shardId) {
             return player;
         } catch (error) {
             lastError = error;
-            console.error(`[Music] ❌ Échec via "${targetNode.name}": ${error.message || error}`);
+            forcedNodeName = null;
 
+            // Logger les détails de l'erreur
+            console.error(`[Music] ❌ Échec via "${targetNode.name}": ${error.message || error}`);
             if (error.name === 'RestError') {
-                console.error(`[Music] Détails - Status: ${error.status}, Path: ${error.path}`);
+                console.error(`[Music] Détails REST - Status: ${error.status}, Path: ${error.path}`);
+                // Logger l'état de la connexion vocale pour diagnostiquer
+                const conn = shoukaku.connections.get(sGuildId);
+                if (conn) {
+                    console.error(`[Music] 🔍 Voice State Debug:`, JSON.stringify({
+                        sessionId: conn.sessionId || 'NULL',
+                        hasServerUpdate: !!conn.serverUpdate,
+                        token: conn.serverUpdate?.token ? 'present' : 'NULL',
+                        endpoint: conn.serverUpdate?.endpoint || 'NULL'
+                    }));
+                } else {
+                    console.error(`[Music] 🔍 Aucune connexion vocale trouvée (nettoyée par Shoukaku)`);
+                }
             }
 
-            // Marquer ce nœud comme problématique et invalider le sticky
+            // Invalider le sticky si c'est celui qui a échoué
             if (currentStickyNodeName === targetNode.name) {
                 currentStickyNodeName = null;
             }
 
-            // Attendre un peu avant d'essayer le nœud suivant
-            if (i < sortedNodes.length - 1) {
-                console.log(`[Music] ⏳ Attente 2s avant d'essayer le nœud suivant...`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+            // Attendre avant le prochain essai
+            if (i < allNodes.length - 1) {
+                console.log(`[Music] ⏳ Attente 3s avant d'essayer le nœud suivant...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
             }
         }
     }
 
     // Tous les nœuds ont échoué
-    console.error(`[Music] 💀 Tous les nœuds Lavalink ont échoué (${sortedNodes.length} testés).`);
+    console.error(`[Music] 💀 Tous les nœuds Lavalink ont échoué (${allNodes.length} testés).`);
     throw lastError;
 }
 
