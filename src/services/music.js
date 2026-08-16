@@ -25,20 +25,18 @@ function getNodes() {
         });
     }
 
-    // Nœuds publics gratuits (Mis à jour Mai 2026)
-    // Source: https://lavalink-status.triniumhost.com + https://lavalink.darrennathanael.com/
+    // Nœuds de secours opérationnels
     const publicNodes = [
-        { name: 'Serenetia', url: 'lavalinkv4.serenetia.com:443', auth: 'https://seretia.link/discord', secure: true },
-        { name: 'Trinium-SSL', url: 'lavalink-v4.triniumhost.com:443', auth: 'free', secure: true },
-        { name: 'Trinium-2333', url: 'lavalink.triniumhost.com:2333', auth: 'kirito', secure: false },
-        { name: 'NexCloud', url: 'n3.nexcloud.in:2026', auth: 'nexcloud', secure: false },
-        { name: 'VexaNode', url: 'omega.vexanode.cloud:2031', auth: 'https://discord.vexanode.cloud', secure: false },
-        { name: 'Jirayu', url: 'lavalink.jirayu.net:443', auth: 'youshallnotpass', secure: true }
+        { name: 'Serenetia-Main', url: 'lavalinkv4.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true },
+        { name: 'Serenetia-Backup', url: 'lavalink.serenetia.com:443', auth: 'https://dsc.gg/ajidevserver', secure: true }
     ];
 
-    // On ajoute toujours les nœuds publics en secours, même si un nœud custom est présent
-    // Shoukaku choisira intelligemment le meilleur nœud (L'idéal)
-    nodes.push(...publicNodes);
+    // On ajoute les nœuds de secours uniquement s'ils ne sont pas déjà le nœud principal
+    for (const pNode of publicNodes) {
+        if (!nodes.some(n => n.url === pNode.url)) {
+            nodes.push(pNode);
+        }
+    }
 
     return nodes;
 }
