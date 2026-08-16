@@ -4,7 +4,7 @@ const { Blackjack } = require('../../systems/casino');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('casinotop')
-        .setDescription('Affiche le Top 10 des joueurs les plus riches du Sigma Palace 🏆'),
+        .setDescription('Affiche le Top 10 des joueurs les plus riches du Casino 🏆'),
 
     async execute(interaction) {
         await interaction.deferReply();
@@ -12,7 +12,7 @@ module.exports = {
         const topPlayers = await Blackjack.getLeaderboard();
 
         const embed = new EmbedBuilder()
-            .setTitle('🏆 SIGMA PALACE - LEADERBOARD')
+            .setTitle('🏆 CASINO LEADERBOARD')
             .setColor('#febc11')
             .setDescription('Voici les 10 plus gros parieurs du serveur !')
             .setThumbnail('https://cdn-icons-png.flaticon.com/512/3112/3112946.png');

@@ -9,25 +9,22 @@ module.exports = {
         .addStringOption(option => option.setName('reason').setDescription('La raison de l\'avertissement').setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
     async execute(interaction) {
-        const user = interaction.options.getUser('user');
+        const member = interaction.options.getMember('user');
         const reason = interaction.options.getString('reason');
 
-        // Save to DB
-        const warnRef = db.collection('users').doc(user.id).collection('warnings');
-        await warnRef.add({
-            moderatorId: interaction.user.id,
-            reason: reason,
-            createdAt: new Date(),
-        });
+        if (!member) {
+            return interaction.reply({ content: '❌ Ce membre n\'existe pas ou n\'est plus sur le serveur.', flags: [64] });
+        }
 
-        // Get total warns
-        const snapshot = await warnRef.get();
-        const warnCount = snapshot.size;
+        const { addWarning } = require('../../systems/moderation');
+
+        // Exécuter l'avertissement et vérifier les sanctions
+        const { warnCount, sanctionMessage } = await addWarning(member, reason, interaction.user.id, interaction.channel);
 
         const warnEmbed = new EmbedBuilder()
             .setColor('#ff9900')
             .setTitle('⚠️ AVERTISSEMENT')
-            .setDescription(`Le membre ${user} a reçu un avertissement.`)
+            .setDescription(`Le membre ${member.user} a reçu un avertissement.`)
             .addFields(
                 { name: 'Raison', value: reason },
                 { name: 'Total avertissements', value: `${warnCount}` },
@@ -35,13 +32,10 @@ module.exports = {
             )
             .setTimestamp();
 
-        await interaction.reply({ embeds: [warnEmbed] });
-
-        // DM the user
-        try {
-            await user.send(`Vous avez reçu un avertissement sur le serveur de CODM Streamer.\nRaison : ${reason}\nTotal : ${warnCount}`);
-        } catch (e) {
-            console.log('Could not send DM to user');
+        if (sanctionMessage) {
+            warnEmbed.addFields({ name: 'Sanction Automatique', value: sanctionMessage });
         }
+
+        await interaction.reply({ embeds: [warnEmbed] });
     },
 };

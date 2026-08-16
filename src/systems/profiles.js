@@ -155,10 +155,10 @@ const BADGES = {
     // Badges de Prestige (ANIMÉS)
     sigma_player: {
         id: 'sigma_player',
-        name: 'Sigma Player',
+        name: 'Membre d\'Honneur',
         emoji: '💎',
         animated: '<a:sigma_anim:ID_ICI>',
-        description: 'Membre Premium Sigma',
+        description: 'Membre d\'honneur du bot',
         rarity: 'special'
     },
     titan_server: {
@@ -189,10 +189,10 @@ const BADGES = {
     // Badges de Packs & Achats (ANIMÉS)
     sigma_bundle: {
         id: 'sigma_bundle',
-        name: 'Sigma Bundle',
+        name: 'Pack d\'Honneur',
         emoji: '🎁',
         animated: '<a:sigma_pack_anim:ID_ICI>',
-        description: 'A acheté le Pack Sigma (Jetons + Sub)',
+        description: 'Pack de soutien d\'honneur',
         rarity: 'rare'
     },
     titan_bundle: {

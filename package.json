@@ -21,7 +21,6 @@
     "express": "^5.2.1",
     "firebase-admin": "^13.6.0",
     "node-fetch": "^3.3.2",
-    "paypal-rest-sdk": "^1.8.1",
     "rss-parser": "^3.13.0",
     "shoukaku": "^4.3.0"
   }

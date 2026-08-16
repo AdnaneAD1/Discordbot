@@ -4,13 +4,13 @@ const { Blackjack } = require('../../systems/casino');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('chips')
-        .setDescription('Consulte ton solde de jetons du Sigma Palace Casino 🪙'),
+        .setDescription('Consulte ton solde de jetons du Casino 🪙'),
 
     async execute(interaction) {
         const balance = await Blackjack.getBalance(interaction.user.id);
 
         const embed = new EmbedBuilder()
-            .setTitle('🪙 SIGMA PALACE - COFFRE-FORT')
+            .setTitle('🪙 COFFRE-FORT CASINO')
             .setColor('#febc11')
             .setDescription(`Tu possèdes actuellement **${balance}** jetons.`)
             .setThumbnail(interaction.user.displayAvatarURL())

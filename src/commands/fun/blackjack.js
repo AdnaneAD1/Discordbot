@@ -4,7 +4,7 @@ const { Blackjack } = require('../../systems/casino');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('blackjack')
-        .setDescription('Joue au Blackjack au Sigma Palace Casino 🎰')
+        .setDescription('Joue au Blackjack au Casino 🎰')
         .addIntegerOption(option =>
             option.setName('mise')
                 .setDescription('Le montant de jetons à parier')
@@ -31,7 +31,7 @@ module.exports = {
             const dealerScore = isGameOver ? Blackjack.calculateScore(dealerHand) : Blackjack.calculateScore([dealerHand[0]]);
 
             const embed = new EmbedBuilder()
-                .setTitle('🃏 SIGMA PALACE - BLACKJACK')
+                .setTitle('🃏 BLACKJACK CASINO')
                 .setColor(isGameOver ? (playerScore > 21 || (dealerScore <= 21 && dealerScore > playerScore) ? '#ff4d4d' : (playerScore === dealerScore ? '#b2bec3' : '#2ecc71')) : '#febc11')
                 .setThumbnail('https://cdn-icons-png.flaticon.com/512/10539/10539871.png')
                 .addFields(

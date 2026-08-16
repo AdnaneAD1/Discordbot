@@ -66,7 +66,7 @@ const GameInfo = {
                 { name: '3️⃣ La Nuit', value: 'Les rôles spéciaux (Loups, Voyante...) agissent dans leurs propres fils secrets. Utilise les **boutons et menus** pour choisir tes cibles.' },
                 { name: '4️⃣ Le Jour', value: 'Le village débat publiquement dans ce salon. Un bouton de vote apparaîtra pour éliminer un suspect avant la fin du temps.' }
             )
-            .setFooter({ text: '💡 Conseil Sigma : Le fair-play est la clé. Ne révèle pas ton rôle en dehors des mécaniques du jeu !' })
+            .setFooter({ text: '💡 Conseil de jeu : Le fair-play est la clé. Ne révèle pas ton rôle en dehors des mécaniques du jeu !' })
             .setColor('#3498db');
     },
 

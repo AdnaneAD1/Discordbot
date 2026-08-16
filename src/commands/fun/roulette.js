@@ -83,7 +83,7 @@ module.exports = {
                     { name: multiplier > 0 ? '💰 Profit' : '💸 Perte', value: multiplier > 0 ? `**+${profit}** 🪙 (x${multiplier})` : `**-${bet}** 🪙`, inline: true },
                     { name: '👛 Nouveau Solde', value: `**${newBalance}** 🪙`, inline: true }
                 )
-                .setFooter({ text: 'Sigma Palace Casino • Bonne chance pour la prochaine !' });
+                .setFooter({ text: 'Casino • Bonne chance pour la prochaine !' });
 
             await interaction.editReply({ embeds: [resultEmbed] });
 

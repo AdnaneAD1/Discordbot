@@ -69,8 +69,7 @@ module.exports = {
                     const { handleEntry } = require('../systems/giveaways');
                     await handleEntry(interaction);
                 } else if (customId === 'open_shop_from_info') {
-                    const shopCommand = interaction.client.commands.get('buychips');
-                    if (shopCommand) await shopCommand.execute(interaction);
+                    await interaction.reply({ content: '🪙 Le bot est désormais 100% gratuit et Open Source ! Toutes les fonctionnalités premium sont débloquées par défaut.', flags: [64] });
                 } else if (customId.startsWith('welcome_')) {
                     await handleWelcomeInteraction(interaction);
                 }

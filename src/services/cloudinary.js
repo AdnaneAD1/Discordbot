@@ -49,6 +49,29 @@ async function uploadFromUrl(imageUrl, folder = 'bot_assets', publicId = null) {
     }
 }
 
+async function uploadImage(fileSource, folder = 'bot_assets', options = {}) {
+    try {
+        const uploadOptions = {
+            folder,
+            resource_type: 'image',
+            overwrite: true,
+            ...options
+        };
+        const result = await cloudinary.uploader.upload(fileSource, uploadOptions);
+        return {
+            success: true,
+            url: result.secure_url,
+            publicId: result.public_id
+        };
+    } catch (error) {
+        console.error('[Cloudinary] Erreur upload image:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
 /**
  * Supprime une image de Cloudinary
  * @param {string} publicId - ID public de l'image
@@ -76,6 +99,7 @@ function isConfigured() {
 
 module.exports = {
     uploadFromUrl,
+    uploadImage,
     deleteImage,
     isConfigured
 };

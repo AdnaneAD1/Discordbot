@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const { validatePrompt } = require('../../utils/contentFilter');
 const imageCooldown = require('../../systems/imageCooldown');
 const { generateImage, modifyImage, getAllStyles, getStyleInfo } = require('../../services/imageGeneration');
+const { db } = require('../../services/firebase');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -112,6 +113,29 @@ module.exports = {
             // Enregistrement de la génération
             await imageCooldown.recordGeneration(interaction.guild.id, interaction.user.id);
 
+            // Téléverser l'image sur Cloudinary si configuré
+            const { isConfigured, uploadImage } = require('../../services/cloudinary');
+            let cloudinaryUrl = null;
+            if (isConfigured()) {
+                const uploadResult = await uploadImage(result.filepath, 'ai_images');
+                if (uploadResult.success) {
+                    cloudinaryUrl = uploadResult.url;
+                }
+            }
+
+            // Enregistrer dans la galerie Firestore
+            if (cloudinaryUrl) {
+                await db.collection('ai_gallery').add({
+                    prompt,
+                    style,
+                    imageUrl: cloudinaryUrl,
+                    userId: interaction.user.id,
+                    username: interaction.user.username,
+                    guildId: interaction.guild.id,
+                    createdAt: new Date()
+                }).catch(console.error);
+            }
+
             // Récupérer les infos du style
             const styleInfo = getStyleInfo(style);
 
@@ -124,7 +148,7 @@ module.exports = {
                     { name: 'Coût', value: cost > 0 ? `**${cost}** 🪙` : `${maxImages - (cooldownCheck.remaining - 1)}/${maxImages} (Gratuit)`, inline: true },
                     { name: 'Provider', value: result.providerName, inline: true }
                 )
-                .setImage('attachment://generated.png')
+                .setImage(cloudinaryUrl || 'attachment://generated.png')
                 .setColor('#9b59b6')
                 .setFooter({ text: `Demandé par ${interaction.user.username} • Propulsé par ${result.providerName}` })
                 .setTimestamp();
@@ -144,12 +168,15 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
-            const attachment = new AttachmentBuilder(result.filepath, { name: 'generated.png' });
+            const files = [];
+            if (!cloudinaryUrl) {
+                files.push(new AttachmentBuilder(result.filepath, { name: 'generated.png' }));
+            }
 
             await interaction.editReply({
                 content: '', // Reset text content
                 embeds: [embed],
-                files: [attachment],
+                files: files,
                 components: [row]
             });
 

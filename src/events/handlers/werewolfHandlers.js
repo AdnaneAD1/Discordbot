@@ -329,6 +329,12 @@ async function handleWerewolfInteraction(interaction) {
             await interaction.reply({ content: `🧪 Tu as choisi d'éliminer <@${victimId}> !`, flags: [64] });
             await game.checkNightEnd();
         }
+
+        try {
+            await game.saveState();
+        } catch (e) {
+            console.error("Error saving state from interaction handler:", e);
+        }
     }
 }
 

@@ -17,7 +17,15 @@ module.exports = {
         .addChannelOption(option => option.setName('music_text_channel').setDescription('Salon textuel EXCLUSIF pour les commandes de musique'))
         .addChannelOption(option => option.setName('werewolf_channel').setDescription('Salon pour le jeu Loup-Garou'))
         .addChannelOption(option => option.setName('rank_up_channel').setDescription('Salon pour les annonces de passage de grade'))
-        .addIntegerOption(option => option.setName('werewolf_timer').setDescription('Durée du compte à rebours (secondes)')),
+        .addChannelOption(option => option.setName('ticket_category').setDescription('Catégorie pour la création des tickets (Salons)'))
+        .addRoleOption(option => option.setName('staff_role').setDescription('Rôle ayant accès aux tickets de support'))
+        .addIntegerOption(option => option.setName('werewolf_timer').setDescription('Durée du compte à rebours (secondes)'))
+        .addIntegerOption(option => option.setName('xp_veteran').setDescription('XP requis pour le grade Vétéran'))
+        .addIntegerOption(option => option.setName('xp_elite').setDescription('XP requis pour le grade Élite'))
+        .addIntegerOption(option => option.setName('xp_pro').setDescription('XP requis pour le grade Pro'))
+        .addIntegerOption(option => option.setName('xp_maitre').setDescription('XP requis pour le grade Maître'))
+        .addIntegerOption(option => option.setName('xp_grand_maitre').setDescription('XP requis pour le grade Grand Maître'))
+        .addIntegerOption(option => option.setName('xp_legendaire').setDescription('XP requis pour le grade Légendaire')),
     async execute(interaction) {
         const guildId = interaction.guild.id;
         const guildConfigRef = db.collection('guilds').doc(guildId).collection('config');
@@ -35,10 +43,8 @@ module.exports = {
             rankUpChannel: interaction.options.getChannel('rank_up_channel'),
             werewolfChannel: interaction.options.getChannel('werewolf_channel'),
             werewolfTimer: interaction.options.getInteger('werewolf_timer'),
-            musicChannel: interaction.options.getChannel('music_channel'),
-            musicTextChannel: interaction.options.getChannel('music_text_channel'),
-            rankUpChannel: interaction.options.getChannel('rank_up_channel'),
-            werewolfChannel: interaction.options.getChannel('werewolf_channel'),
+            ticketCategory: interaction.options.getChannel('ticket_category'),
+            staffRole: interaction.options.getRole('staff_role'),
             xpVeteran: interaction.options.getInteger('xp_veteran'),
             xpElite: interaction.options.getInteger('xp_elite'),
             xpPro: interaction.options.getInteger('xp_pro'),

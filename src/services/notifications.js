@@ -29,7 +29,18 @@ const checkTwitch = async (client, account) => {
                     .setThumbnail(stream.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
                     .setTimestamp();
 
-                channel.send({ content: `@everyone Hey ! **${stream.user_name}** est en live sur Twitch !`, embeds: [embed] });
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('▶️ Regarder le live')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(`https://twitch.tv/${stream.user_login}`)
+                );
+
+                await channel.send({
+                    content: `@everyone 🚨 **ALERTE LIVE** : **${stream.user_name}** est en live sur Twitch !`,
+                    embeds: [embed],
+                    components: [row]
+                });
                 await db.collection('socials').doc(account.id).update({ isLive: true });
             }
         } else if (!stream && account.isLive) {
@@ -48,7 +59,29 @@ const checkYouTube = async (client, account) => {
         if (lastVideo && lastVideo.id !== account.lastPostId) {
             const channel = client.channels.cache.get(account.channelId);
             if (channel) {
-                channel.send(`🔴 NOUVELLE VIDÉO ! **${lastVideo.title}** est maintenant disponible sur YouTube.\n${lastVideo.link}`);
+                const videoId = lastVideo.id.replace('yt:video:', '');
+                const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+                const embed = new EmbedBuilder()
+                    .setColor('#ff0000')
+                    .setTitle(`🔴 NOUVELLE VIDÉO : ${lastVideo.author || 'YouTube'}`)
+                    .setDescription(lastVideo.title)
+                    .setURL(lastVideo.link)
+                    .setImage(thumbnailUrl)
+                    .setTimestamp(new Date(lastVideo.isoDate || Date.now()));
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('▶️ Regarder la vidéo')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(lastVideo.link)
+                );
+
+                await channel.send({
+                    content: `📢 **NOUVELLE VIDÉO** : @everyone **${lastVideo.author || 'YouTube'}** vient de publier une vidéo !`,
+                    embeds: [embed],
+                    components: [row]
+                });
                 await db.collection('socials').doc(account.id).update({ lastPostId: lastVideo.id });
             }
         }
@@ -231,7 +264,7 @@ const checkTikTok = async (client, account) => {
 
         // --- 2. NEW POST DETECTION (Embed Method) ---
         try {
-            // --- SIGMA DETECTION LOGIC ---
+            // --- DETECTION LOGIC ---
             const randomUserAgents = [
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
@@ -256,7 +289,7 @@ const checkTikTok = async (client, account) => {
 
             // Health check: If HTML is too short, we might be blocked or getting an empty state
             if (embedHtml.length < 5000) {
-                console.warn(`[TikTok-Sigma] Warning: Low HTML length (${embedHtml.length}) for ${username}. Possible block.`);
+                console.warn(`[TikTok-Open] Warning: Low HTML length (${embedHtml.length}) for ${username}. Possible block.`);
             }
 
             let potentialIds = [];
@@ -302,7 +335,7 @@ const checkTikTok = async (client, account) => {
             const regexIds = videoIdMatches.map(match => match[1]);
             potentialIds = [...new Set([...potentialIds, ...regexIds])];
 
-            console.log(`[TikTok-Sigma] Found ${potentialIds.length} candidate IDs for ${username}`);
+            console.log(`[TikTok-Open] Found ${potentialIds.length} candidate IDs for ${username}`);
 
             // 3. Deduplicate and Sort Descending (Newest first)
             const uniqueIds = potentialIds.sort((a, b) => {

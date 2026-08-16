@@ -88,15 +88,47 @@ class MusicPlayer {
         this.queue = [];
         this.history = []; // Stockage des morceaux déjà joués
         this.current = null;
-        this.loop = 'none'; // 'none', 'track', 'queue'
+        this._loop = 'none'; // 'none', 'track', 'queue'
         this.volume = 100;
         this.textChannel = null;
         this.nowPlayingMessage = null;
         this.skipVotes = new Set();
     }
 
+    set loop(val) {
+        this._loop = val;
+        this.saveQueue();
+    }
+
+    get loop() {
+        return this._loop || 'none';
+    }
+
+    async saveQueue() {
+        try {
+            if (this.queue.length === 0 && !this.current) {
+                await db.collection('music_active_queues').doc(this.guildId).delete().catch(() => {});
+                return;
+            }
+
+            await db.collection('music_active_queues').doc(this.guildId).set({
+                guildId: this.guildId,
+                voiceChannelId: this.connection.channelId,
+                textChannelId: this.textChannel?.id || null,
+                current: this.current || null,
+                queue: this.queue,
+                loop: this.loop,
+                volume: this.volume,
+                lastUpdate: new Date()
+            });
+        } catch (error) {
+            console.error(`[Music] Error saving queue for guild ${this.guildId}:`, error);
+        }
+    }
+
     addTrack(track) {
         this.queue.push(track);
+        this.saveQueue();
     }
 
     nextTrack() {
@@ -107,12 +139,14 @@ class MusicPlayer {
         }
 
         if (this.loop === 'track' && this.current) {
+            this.saveQueue();
             return this.current;
         }
         if (this.loop === 'queue' && this.current) {
             this.queue.push(this.current);
         }
         this.current = this.queue.shift() || null;
+        this.saveQueue();
         return this.current;
     }
 
@@ -126,6 +160,7 @@ class MusicPlayer {
 
         // On récupère le dernier morceau de l'historique
         this.current = this.history.pop();
+        this.saveQueue();
         return this.current;
     }
 
@@ -134,11 +169,13 @@ class MusicPlayer {
             const j = Math.floor(Math.random() * (i + 1));
             [this.queue[i], this.queue[j]] = [this.queue[j], this.queue[i]];
         }
+        this.saveQueue();
     }
 
     clear() {
         this.queue = [];
         this.current = null;
+        this.saveQueue();
     }
 }
 
@@ -338,6 +375,7 @@ async function getPlayer(guildId, channelId, shardId) {
 async function playTrack(player, track) {
     player.current = track;
     player.skipVotes = new Set();
+    player.saveQueue();
 
     await player.connection.playTrack({ track: { encoded: track.encoded } });
 
@@ -460,6 +498,7 @@ function destroyPlayer(guildId) {
             player.nowPlayingMessage.delete().catch(() => { });
         }
         players.delete(guildId);
+        db.collection('music_active_queues').doc(guildId).delete().catch(() => {});
     }
     shoukaku.leaveVoiceChannel(guildId);
 }
@@ -670,6 +709,46 @@ function formatSearchQuery(query, source = 'youtube') {
     return `${prefix}:${query}`;
 }
 
+async function resumeQueues(client) {
+    if (!shoukaku) return;
+    console.log('[Music] Checking for active music queues to restore...');
+    try {
+        const snapshot = await db.collection('music_active_queues').get();
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            try {
+                const guild = await client.guilds.fetch(data.guildId).catch(() => null);
+                if (!guild) continue;
+
+                const voiceChannel = await client.channels.fetch(data.voiceChannelId).catch(() => null);
+                if (!voiceChannel) continue;
+
+                console.log(`[Music] Restoring queue for guild ${data.guildId} in voice channel ${data.voiceChannelId}...`);
+
+                const player = await getPlayer(data.guildId, data.voiceChannelId, guild.shardId);
+                if (data.textChannelId) {
+                    player.textChannel = await client.channels.fetch(data.textChannelId).catch(() => null);
+                }
+
+                player.queue = data.queue || [];
+                player._loop = data.loop || 'none';
+                player.volume = data.volume || 100;
+                
+                if (data.current) {
+                    await playTrack(player, data.current);
+                } else if (player.queue.length > 0) {
+                    const next = player.nextTrack();
+                    if (next) await playTrack(player, next);
+                }
+            } catch (err) {
+                console.error(`[Music] Failed to restore queue for guild ${doc.id}:`, err);
+            }
+        }
+    } catch (e) {
+        console.error('[Music] Error in resumeQueues:', e);
+    }
+}
+
 module.exports = {
     initMusic,
     getShoukaku,
@@ -692,6 +771,7 @@ module.exports = {
     SEARCH_ENGINES,
     getSearchQuery,
     formatSearchQuery,
+    resumeQueues,
     // Backward compatibility
     getKazagumo: getShoukaku
 };

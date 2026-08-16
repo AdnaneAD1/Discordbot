@@ -119,48 +119,14 @@ const PREMIUM_FEATURES = {
     NO_COOLDOWNS: 'no_cooldowns'
 };
 
-/**
- * Récupère l'abonnement d'un utilisateur
- */
 async function getUserSubscription(userId, guildId = null) {
-    try {
-        // Vérifier d'abord l'abonnement global de l'utilisateur
-        const globalSubRef = db.collection('subscriptions').doc(userId);
-        const globalSubDoc = await globalSubRef.get();
-
-        if (globalSubDoc.exists) {
-            const data = globalSubDoc.data();
-
-            // Vérifier si l'abonnement est encore valide
-            if (data.expiresAt && data.expiresAt.toDate() > new Date()) {
-                return {
-                    tier: resolveTier(data.tier),
-                    expiresAt: data.expiresAt.toDate(),
-                    isActive: true,
-                    billingCycle: data.billingCycle || 'monthly',
-                    startedAt: data.startedAt?.toDate() || null
-                };
-            }
-        }
-
-        // Aucun abonnement actif
-        return {
-            tier: SUBSCRIPTION_TIERS.FREE,
-            expiresAt: null,
-            isActive: false,
-            billingCycle: null,
-            startedAt: null
-        };
-    } catch (error) {
-        console.error('[Subscriptions] Erreur récupération:', error);
-        return {
-            tier: SUBSCRIPTION_TIERS.FREE,
-            expiresAt: null,
-            isActive: false,
-            billingCycle: null,
-            startedAt: null
-        };
-    }
+    return {
+        tier: SUBSCRIPTION_TIERS.TITAN_SERVER,
+        expiresAt: null,
+        isActive: true,
+        billingCycle: 'infinite',
+        startedAt: new Date()
+    };
 }
 
 /**
@@ -451,36 +417,12 @@ function calculateYearlySavings(tierId) {
 
 // ===== GESTION DES SERVEURS PREMIUM =====
 
-/**
- * Vérifie si un serveur a le premium activé (par n'importe quel utilisateur)
- */
 async function isGuildPremium(guildId) {
-    try {
-        const snapshot = await db.collection('subscriptions')
-            .where('status', '==', 'active')
-            .where('activeGuildIds', 'array-contains', guildId)
-            .limit(1)
-            .get();
-
-        if (snapshot.empty) return { isPremium: false, sponsor: null, tier: null };
-
-        const doc = snapshot.docs[0];
-        const data = doc.data();
-
-        // Vérifier expiration
-        if (data.expiresAt && data.expiresAt.toDate() <= new Date()) {
-            return { isPremium: false, sponsor: null, tier: null };
-        }
-
-        return {
-            isPremium: true,
-            sponsor: doc.id, // userId du sponsor
-            tier: resolveTier(data.tier)
-        };
-    } catch (error) {
-        console.error('[Subscriptions] Erreur isGuildPremium:', error);
-        return { isPremium: false, sponsor: null, tier: null };
-    }
+    return {
+        isPremium: true,
+        sponsor: 'open-source',
+        tier: SUBSCRIPTION_TIERS.TITAN_SERVER
+    };
 }
 
 /**

@@ -76,6 +76,12 @@ client.once(Events.ClientReady, () => {
     initGiveaways(client);
     client.werewolf.initGames();
 
+    // Restauration des files d'attente musicales après connexion Lavalink
+    setTimeout(() => {
+        const { resumeQueues } = require('./services/music');
+        resumeQueues(client).catch(err => console.error('[Music] Error resuming queues:', err));
+    }, 5000);
+
     // Nettoyage toutes les 15 minutes
     setInterval(() => {
         cleanupExpiredChallenges(client);

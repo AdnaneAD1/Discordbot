@@ -67,11 +67,7 @@ module.exports = {
                 description: 'Commandes utilisateur et profile',
                 commands: [
                     { name: '/profile', desc: 'Affiche ton profil complet.', example: '/profile' },
-                    { name: '/add-social', desc: 'Ajoute tes réseaux sur ton profil.', example: '/add-social plateforme:Instagram lien:...' },
-                    { name: '/shop', desc: 'Boutique de Jetons et Packs.', example: '/shop' },
-                    { name: '/buychips', desc: 'Achat rapide de jetons.', example: '/buychips' },
-                    { name: '/premium status', desc: 'Voir ton abonnement actuel.', example: '/premium status' },
-                    { name: '/premium activate', desc: 'Active le Premium ici.', example: '/premium activate' }
+                    { name: '/add-social', desc: 'Ajoute tes réseaux sur ton profil.', example: '/add-social plateforme:Instagram lien:...' }
                 ]
             },
             'moderation': {
@@ -92,13 +88,13 @@ module.exports = {
         };
 
         const embed = new EmbedBuilder()
-            .setTitle('📚 Centre d\'Aide Sigma Bot')
+            .setTitle('📚 Centre d\'Aide Open Discord Bot')
             .setDescription('Bienvenue ! Sélectionnez une catégorie ci-dessous pour voir toutes les commandes.\nChaque commande est détaillée avec un exemple d\'utilisation.')
             .setColor('#2b2d31')
             .setThumbnail(interaction.client.user.displayAvatarURL())
             .addFields({
-                name: '💎 Devenir Premium ?',
-                value: 'Tapez `/shop` ou `/premium info` pour découvrir les avantages exclusifs (Images 4K, XP x2, etc.)'
+                name: '🪙 100% Gratuit & Open Source',
+                value: 'Toutes les fonctionnalités premium sont débloquées par défaut pour tout le monde !'
             });
 
         const selectMenu = new StringSelectMenuBuilder()

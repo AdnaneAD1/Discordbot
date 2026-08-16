@@ -25,7 +25,17 @@ async function checkToxicity(message) {
         // Toxic-BERT renvoie des scores pour 'toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'
         const toxicScore = results.find(r => r.label === 'toxic')?.score || 0;
 
-        if (toxicScore > 0.70) {
+        if (toxicScore > 0.85) {
+            const { addWarning } = require('./moderation');
+            const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+            if (member) {
+                await message.delete().catch(() => {});
+                await message.channel.send(`⚠️ ${message.author}, votre message a été supprimé pour toxicité excessive.`).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await addWarning(member, `Toxicité excessive (${(toxicScore * 100).toFixed(0)}%)`, message.client.user.id, message.channel);
+            }
+        } else if (toxicScore > 0.70) {
             await alertAdmins(message, toxicScore, results);
         }
     } catch (error) {

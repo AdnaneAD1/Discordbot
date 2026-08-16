@@ -57,16 +57,62 @@ class Game {
 
     async saveState() {
         try {
-            const playersData = Array.from(this.players.values()).map(p => ({
-                id: p.id,
-                username: p.username,
-                roleId: p.role?.id || null,
-                isAlive: p.isAlive,
-                isProtected: p.isProtected,
-                isInfected: p.isInfected,
-                isLover: p.isLover,
-                isMayor: p.isMayor
-            }));
+            const playersData = Array.from(this.players.values()).map(p => {
+                const pData = {
+                    id: p.id,
+                    username: p.username,
+                    roleId: p.role?.id || null,
+                    isAlive: p.isAlive,
+                    isProtected: p.isProtected,
+                    isInfected: p.isInfected,
+                    lover: p.lover || null,
+                    isMayor: p.isMayor || false,
+                    powerless: p.powerless || false
+                };
+
+                if (p.role) {
+                    pData.roleState = {};
+                    if (p.role.id === 'witch') {
+                        pData.roleState.hasLifePotion = p.role.hasLifePotion;
+                        pData.roleState.hasDeathPotion = p.role.hasDeathPotion;
+                    } else if (p.role.id === 'heir') {
+                        pData.roleState.targetId = p.role.targetId;
+                    } else if (p.role.id === 'elder') {
+                        pData.roleState.extraLife = p.role.extraLife;
+                    } else if (p.role.id === 'dictator') {
+                        pData.roleState.hasPower = p.role.hasPower;
+                    } else if (p.role.id === 'black_werewolf') {
+                        pData.roleState.hasInfectionPower = p.role.hasInfectionPower;
+                    } else if (p.role.id === 'wild_child') {
+                        pData.roleState.modelId = p.role.modelId;
+                    }
+                }
+                return pData;
+            });
+
+            const playerThreadsData = {};
+            for (const [playerId, thread] of this.playerThreads.entries()) {
+                playerThreadsData[playerId] = thread?.id || null;
+            }
+
+            const wolfVotesObj = {};
+            for (const [voterId, targetId] of this.nightActions.wolfVotes.entries()) {
+                wolfVotesObj[voterId] = targetId;
+            }
+
+            const nightActionsData = {
+                wolfVotes: wolfVotesObj,
+                wolfTargetId: this.nightActions.wolfTargetId || null,
+                seerTargetId: this.nightActions.seerTargetId || null,
+                witchActions: this.nightActions.witchActions || { save: null, kill: null, skip: false },
+                guardTargetId: this.nightActions.guardTargetId || null,
+                cupidTargets: this.nightActions.cupidTargets || [],
+                whiteWolfTargetId: this.nightActions.whiteWolfTargetId || null,
+                crowTargetId: this.nightActions.crowTargetId || null,
+                blackWolfInfectedId: this.nightActions.blackWolfInfectedId || null,
+                pyroGasTargetIds: this.nightActions.pyroGasTargetIds || [],
+                pyroAction: this.nightActions.pyroAction || null,
+            };
 
             await this.dbRef.set({
                 guildId: this.channel.guild.id,
@@ -78,11 +124,80 @@ class Game {
                 themeId: this.themeId,
                 threadId: this.thread?.id || null,
                 wolfThreadId: this.wolfThread?.id || null,
-                players: playersData,
+                timerEnd: this.timerEnd || null,
+                logs: this.logs || [],
+                recentDeadIds: this.recentDeadIds || [],
+                customRoles: this.customRoles || [],
+                pendingHunter: this.pendingHunter || false,
+                dayPending: this.dayPending || false,
+                isWolfUnanimous: this.isWolfUnanimous || false,
+                mayorId: this.mayorId || null,
+                playerThreads: playerThreadsData,
+                nightActions: nightActionsData,
                 lastUpdate: new Date()
             }, { merge: true });
         } catch (err) {
             console.error(`[Werewolf] Error saving state for ${this.channel.id}:`, err);
+        }
+    }
+
+    createRoleInstance(roleId) {
+        return Game.createRole(roleId);
+    }
+
+    static createRole(roleId) {
+        const Villageois = require('./roles/Villager');
+        const LoupGarou = require('./roles/Werewolf');
+        const Voyante = require('./roles/Seer');
+        const Sorciere = require('./roles/Witch');
+        const Chasseur = require('./roles/Hunter');
+        const Cupidon = require('./roles/Cupid');
+        const Garde = require('./roles/Guard');
+        const Mentaliste = require('./roles/Mentalist');
+        const Fossoyeur = require('./roles/Gravedigger');
+        const Dictateur = require('./roles/Dictator');
+        const LoupBlanc = require('./roles/WhiteWerewolf');
+        const Corbeau = require('./roles/Crow');
+        const Ancien = require('./roles/Elder');
+        const Heritier = require('./roles/Heir');
+        const LoupNoir = require('./roles/BlackWerewolf');
+        const Sorcier = require('./roles/Sorcerer');
+        const Pyromane = require('./roles/Pyromaniac');
+        const EnfantSauvage = require('./roles/WildChild');
+
+        const roleMap = {
+            'seer': Voyante, 'witch': Sorciere, 'hunter': Chasseur, 'cupid': Cupidon,
+            'guard': Garde, 'mentalist': Mentaliste, 'gravedigger': Fossoyeur,
+            'dictator': Dictateur, 'white_werewolf': LoupBlanc, 'crow': Corbeau,
+            'elder': Ancien, 'heir': Heritier, 'black_werewolf': LoupNoir,
+            'sorcerer': Sorcier, 'pyromaniac': Pyromane, 'wild_child': EnfantSauvage,
+            'villager': Villageois, 'werewolf': LoupGarou
+        };
+
+        const RoleClass = roleMap[roleId] || Villageois;
+        return new RoleClass();
+    }
+
+    async resumeTimer(timeLeftMs) {
+        const seconds = Math.round(timeLeftMs / 1000);
+        console.log(`[Werewolf] Resuming timer for game ${this.channel.id} with ${seconds}s left. State: ${this.state}`);
+
+        if (this.state === 'DAY_VOTING') {
+            this.startTimer(seconds, async () => {
+                await this.handleVillageVoteResult();
+            });
+        } else if (this.state === 'NIGHT') {
+            this.startTimer(seconds, async () => {
+                await this.handleNightResult();
+            });
+        } else if (this.state === 'MAYOR_ELECTION') {
+            this.startTimer(seconds, async () => {
+                await this.handleMayorResult();
+            });
+        } else if (this.state === 'NIGHT_RESOLUTION') {
+            this.startTimer(seconds, async () => {
+                await this.finalizeNight();
+            });
         }
     }
 
@@ -1145,6 +1260,7 @@ class Game {
         if (this.timerUpdate) clearInterval(this.timerUpdate);
 
         this.timerEnd = Date.now() + (seconds * 1000);
+        await this.saveState();
 
         this.timer = setTimeout(async () => {
             this.clearTimers();
